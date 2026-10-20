@@ -36,13 +36,15 @@ const has = (...r) => me?.roles?.some((x) => r.includes(x) || x === 'owner');
 // ---------------- Login ----------------
 function loginView() {
   $('#root').innerHTML = `<div class="login"><form class="panel" id="lf">
-    <div style="font-family:var(--f-display);font-size:28px;font-weight:700">Wasl</div>
+    <div class="brand" style="padding:0"><span class="mark">W</span><div><b>Wasl</b><small>HRMS · UAE</small></div></div>
+    <h1 style="font-size:38px;margin:4px 0 0">Run <em>payroll</em> with confidence</h1>
     <p class="sub" style="margin:0">UAE HR, payroll and compliance</p>
     <div class="field"><label class="lbl" for="em">Email</label><input id="em" type="email" value="admin@alnoor.demo" required></div>
     <div class="field"><label class="lbl" for="pw">Password</label><input id="pw" type="password" value="Demo@2026" required></div>
     <div class="err" id="le"></div>
     <button class="btn pri" type="submit">Sign in</button>
     <p class="note">Demo accounts: admin@alnoor.demo (HR + payroll maker), checker@alnoor.demo (payroll checker). Password Demo@2026.</p>
+    <div class="powered" style="padding:12px 0 0"><span>POWERED BY</span><img src="devx-logo-light.png" alt="DevX Technologies"></div>
   </form></div>`;
   $('#lf').onsubmit = async (e) => {
     e.preventDefault();
@@ -56,14 +58,61 @@ function loginView() {
 }
 function signOut() { token = null; me = null; localStorage.removeItem('wasl_token'); localStorage.removeItem('wasl_user'); loginView(); }
 
+// ---------------- Pulse grid background ----------------
+const bg = { mx: -999, my: -999, raf: 0 };
+function startBackground() {
+  const c = document.getElementById('bgfx'); if (!c) return;
+  const ctx = c.getContext('2d');
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const t0 = performance.now(); const G = 48;
+  const draw = () => {
+    const w = innerWidth, h = innerHeight;
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const t = (performance.now() - t0) / 1000;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = 0; x <= w; x += G) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); }
+    for (let y = 0; y <= h; y += G) { ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); }
+    ctx.stroke();
+    for (let x = 0; x < w; x += G) for (let y = 0; y < h; y += G) {
+      const d = Math.hypot(x + G / 2 - bg.mx, y + G / 2 - bg.my);
+      const wave = reduce ? 0 : Math.max(0, Math.sin(x * 0.013 + y * 0.021 - t * 1.4)) ** 8 * 0.3;
+      const a = Math.max(wave, d < 200 ? (1 - d / 200) * 0.45 : 0);
+      if (a > 0.02) { ctx.fillStyle = `rgba(255,106,43,${a})`; ctx.fillRect(x + 4, y + 4, G - 8, G - 8); }
+    }
+    if (!reduce) bg.raf = requestAnimationFrame(draw);
+  };
+  addEventListener('pointermove', (e) => { bg.mx = e.clientX; bg.my = e.clientY; if (reduce) draw(); });
+  addEventListener('resize', () => reduce && draw());
+  draw();
+}
+
 // ---------------- Shell ----------------
 const MODS = ['dash', 'emp', 'pay', 'emi', 'docs', 'eosb', 'leave', 'audit'];
+const ICONS = {
+  dash: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  emp: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M22 19v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8',
+  pay: 'M3 7h15a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7zM3 7l2-3h11M16 13.5h2',
+  emi: 'M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3zM9 12l2 2 4-4',
+  docs: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5zM14 3v5h5M9 13h6M9 17h4',
+  eosb: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  leave: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4',
+  audit: 'M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01',
+};
+const icon = (d, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
+let collapsed = localStorage.getItem('wasl_rail') === '1';
 function shell() {
   document.documentElement.dir = L === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = L;
-  $('#root').innerHTML = `<div class="app"><nav class="rail">
-    <div class="brand">Wasl<small>HRMS · UAE</small></div>
-    ${MODS.filter((m) => m !== 'audit' || has('hr_admin')).map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}"><span class="dot"></span>${t(m)}</button>`).join('')}
-    <div class="entity"><span class="lbl">Signed in</span><b>${esc(me.name)}</b>${esc(me.roles.join(', '))}<br><button class="btn sm" id="so" style="margin-top:8px">${t('signout')}</button></div>
+  $('#root').innerHTML = `<div class="app ${collapsed ? 'collapsed' : ''}"><nav class="rail" aria-label="Main">
+    <div class="brand"><span class="mark">W</span><div class="fade"><b>Wasl</b><small>HRMS · UAE</small></div></div>
+    <div class="sect fade">WORKSPACE</div>
+    ${MODS.filter((m) => m !== 'audit' || has('hr_admin')).map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m])}<span class="fade">${t(m)}</span></button>`).join('')}
+    <div class="rail-foot">
+      <div class="who"><span class="av">${esc(ini(me.name))}</span><div class="fade" style="min-width:0"><b>${esc(me.name)}</b><span>${esc(me.roles.join(', '))}</span></div></div>
+      <button class="btn sm fade" id="so">${t('signout')}</button>
+      <div class="powered fade"><span>POWERED BY</span><img src="devx-logo-light.png" alt="DevX Technologies"></div>
+      <button class="collapse" id="col" aria-label="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg><span class="fade">Collapse</span></button>
+    </div>
   </nav><main>
     <div class="top"><form class="cmd" id="cf"><span class="k">AI ⌘</span><input id="cmd" autocomplete="off" placeholder="${esc(t('ph'))}"><button class="btn pri sm" type="submit">${t('run')}</button></form>
     <button class="btn" id="lb">${t('lang')}</button></div>
@@ -72,6 +121,11 @@ function shell() {
   </main></div>`;
   document.querySelectorAll('.nav').forEach((b) => (b.onclick = () => go(b.dataset.m)));
   $('#so').onclick = signOut;
+  $('#col').onclick = () => {
+    collapsed = !collapsed; localStorage.setItem('wasl_rail', collapsed ? '1' : '0');
+    $('.app').classList.toggle('collapsed', collapsed);
+    $('#col').setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+  };
   $('#lb').onclick = () => { L = L === 'en' ? 'ar' : 'en'; localStorage.setItem('wasl_lang', L); shell(); };
   $('#cf').onsubmit = (e) => { e.preventDefault(); const q = $('#cmd').value.trim(); if (q) agent(q); };
   ['Hire Omar Al-Maktoum as Senior Frontend Engineer, AED 22,000, start Nov 1', 'Ahmed Khan wants 3 days annual leave from 26 Oct', 'Salary certificate for Priya Menon addressed to Emirates NBD'].forEach((c) => {
@@ -87,18 +141,80 @@ const pill = (cls, txt) => `<span class="pill ${cls}">${esc(txt)}</span>`;
 // ---------------- Views ----------------
 const views = {
   async dash() {
-    const d = await api('/dashboard');
-    V(`<h1>${t('dash')}</h1><p class="sub">Everything due this month across your establishments, ranked by risk.</p>
+    const [d, runs, emps] = await Promise.all([api('/dashboard'), api('/payroll/runs'), api('/employees?status=active')]);
+    const k = (f) => (f >= 100000000 ? `${Math.round(f / 100000)}k` : AED0(f));
+    const first = (me.name || '').split(' ')[0];
+    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+    V(`<div class="eyebrow">${esc(today)}</div>
+    <h1>Good day, <em>${esc(first)}</em></h1><p class="sub">Everything due across your establishments this month, ranked by risk.</p>
     <div class="grid g4">
-      <div class="panel stat"><div class="lbl">Headcount</div><div class="v">${d.headcount}</div><div class="d">${d.nationals} UAE nationals</div></div>
-      <div class="panel stat"><div class="lbl">Latest payroll (net)</div><div class="v num">${d.lastRun ? AED0(d.lastRun.totals?.netFils) : '—'}</div><div class="d">${d.lastRun ? `${d.lastRun.period} · ${d.lastRun.status.replace('_', ' ')}` : 'No run yet'}</div></div>
-      <div class="panel stat"><div class="lbl">Docs expiring ≤30d</div><div class="v">${d.expiringCount}</div><div class="d">Visas, EIDs, licences</div></div>
-      <div class="panel stat"><div class="lbl">Penalty exposure</div><div class="v num" style="color:var(--bad)">${AED0(d.exposureFils)}</div><div class="d">AED / month</div></div>
+      <div class="panel stat"><div class="v">${d.headcount}</div><span class="lbl">Active employees</span><div class="d">${d.nationals} UAE nationals</div></div>
+      <div class="panel stat"><div class="v num">${d.lastRun ? k(d.lastRun.totals?.netFils || 0) : '—'}</div><span class="lbl">Latest net payroll · AED</span><div class="d">${d.lastRun ? `${d.lastRun.period} · ${esc(d.lastRun.status.replace('_', ' '))}` : 'No run yet'}</div></div>
+      <div class="panel stat"><div class="v ${d.expiringCount ? 'warn' : ''}">${d.expiringCount}</div><span class="lbl">Docs expiring ≤ 30 days</span><div class="d">Visas, Emirates IDs, licences</div></div>
+      <div class="panel stat"><div class="v num ${d.exposureFils ? 'bad' : ''}">${k(d.exposureFils)}</div><span class="lbl">Penalty risk · AED / month</span><div class="d">${d.exposureFils ? 'Emiratisation slot unfilled' : 'No quota gap'}</div></div>
+    </div>
+    <div class="grid g3" style="margin-top:16px">
+      <div class="panel span2"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><h2 style="margin:0">Net payroll</h2><div style="color:var(--muted);font-size:13px">AED thousands · hover for each month</div></div>
+        <div class="seg" role="group" aria-label="Range"><button data-r="6">6M</button><button data-r="12" class="on">12M</button></div></div>
+        <div class="chart" id="chart"></div></div>
+      <div class="panel"><h2>Headcount by team</h2><div id="deptCap" style="font-size:13px;color:var(--muted);min-height:20px;margin-bottom:6px"></div><div id="depts" style="display:flex;flex-direction:column;gap:6px"></div></div>
     </div>
     <div class="panel" style="margin-top:16px"><h2>Needs attention</h2><div class="list">
       ${d.actions.length ? d.actions.map((a) => `<div class="row"><span class="sev" style="background:var(--${sevVar(a.severity)})"></span><div class="grow">${esc(a.text)}</div><button class="btn sm" data-go="${a.go}">Open</button></div>`).join('') : '<div class="empty">Nothing needs attention right now.</div>'}
     </div></div>`);
     document.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => go(b.dataset.go)));
+
+    // Interactive payroll trend
+    const series = runs.filter((r) => r.totals?.netFils).sort((a, b) => a.period.localeCompare(b.period)).map((r) => ({ p: r.period, v: r.totals.netFils / 100000 }));
+    const drawChart = (n) => {
+      const data = series.slice(-n);
+      const el = $('#chart');
+      if (data.length < 2) { el.innerHTML = '<div class="empty">The trend appears after two payroll runs.</div>'; return; }
+      const vs = data.map((x) => x.v), lo = Math.floor(Math.min(...vs) * 0.97), hi = Math.ceil(Math.max(...vs) * 1.02);
+      const X0 = 48, X1 = 664, Y0 = 200, Y1 = 16;
+      const px = (i) => X0 + (i * (X1 - X0)) / (data.length - 1), py = (v) => Y0 - ((v - lo) / (hi - lo || 1)) * (Y0 - Y1);
+      const pts = data.map((x, i) => [px(i), py(x.v)]);
+      const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+      const ticks = [0, 1, 2, 3].map((i) => lo + ((hi - lo) * i) / 3);
+      const mon = (p) => new Date(p + '-01').toLocaleDateString('en-GB', { month: 'short' });
+      el.innerHTML = `<svg viewBox="0 0 680 230" role="img" aria-label="Net payroll trend">
+        <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6a2b" stop-opacity=".3"/><stop offset="1" stop-color="#ff6a2b" stop-opacity="0"/></linearGradient></defs>
+        ${ticks.map((v) => `<line x1="40" x2="672" y1="${py(v)}" y2="${py(v)}" stroke="#1f4b59"/><text x="0" y="${py(v) + 4}" fill="#a9c0c8" font-size="11">${Math.round(v)}</text>`).join('')}
+        <path d="${line} L${X1} ${Y0} L${X0} ${Y0} Z" fill="url(#ga)"/>
+        <path d="${line}" fill="none" stroke="#ff7a3d" stroke-width="2.5" stroke-linejoin="round"/>
+        ${data.map((x, i) => `<text x="${px(i)}" y="226" fill="#a9c0c8" font-size="11" text-anchor="middle">${mon(x.p)}</text>`).join('')}
+        <circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="4.5" fill="#ff7a3d"/>
+        <g id="hov" visibility="hidden"><line id="hl" y1="12" y2="200" stroke="#ff7a3d" stroke-opacity=".4" stroke-dasharray="3 4"/><circle id="hc" r="6" fill="#0f2e39" stroke="#ff7a3d" stroke-width="2.5"/></g>
+      </svg><div class="tip" id="tip" hidden></div>`;
+      const svg = el.querySelector('svg'), tip = $('#tip');
+      svg.onmousemove = (e) => {
+        const r = svg.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * 680;
+        const i = Math.max(0, Math.min(data.length - 1, Math.round(((x - X0) / (X1 - X0)) * (data.length - 1))));
+        $('#hov').setAttribute('visibility', 'visible');
+        $('#hl').setAttribute('x1', pts[i][0]); $('#hl').setAttribute('x2', pts[i][0]);
+        $('#hc').setAttribute('cx', pts[i][0]); $('#hc').setAttribute('cy', pts[i][1]);
+        tip.hidden = false; tip.style.left = `${(pts[i][0] / 680) * 100}%`;
+        tip.innerHTML = `<small>${esc(data[i].p)}</small><span class="num">AED ${data[i].v.toFixed(1)}k</span>`;
+      };
+      svg.onmouseleave = () => { $('#hov').setAttribute('visibility', 'hidden'); tip.hidden = true; };
+    };
+    document.querySelectorAll('.seg button').forEach((b) => (b.onclick = () => { document.querySelectorAll('.seg button').forEach((x) => x.classList.toggle('on', x === b)); drawChart(+b.dataset.r); }));
+    drawChart(12);
+
+    // Team bars
+    const byDept = {}; emps.forEach((e) => { const k2 = e.department || 'Other'; (byDept[k2] ||= []).push(e); });
+    const teams = Object.entries(byDept).sort((a, b) => b[1].length - a[1].length);
+    const max = teams[0]?.[1].length || 1;
+    const showDept = (name) => {
+      const list = byDept[name] || [];
+      const nat = list.filter((e) => e.isUaeNational).length;
+      $('#deptCap').textContent = `${name} · ${list.length} people${nat ? ` · ${nat} UAE national${nat > 1 ? 's' : ''}` : ''}`;
+      document.querySelectorAll('#depts .bar').forEach((b) => b.classList.toggle('on', b.dataset.d === name));
+    };
+    $('#depts').innerHTML = teams.map(([name, list]) => `<button class="bar" data-d="${esc(name)}"><div style="display:flex;justify-content:space-between;font-size:13px"><span>${esc(name)}</span><span class="num" style="color:var(--muted)">${list.length}</span></div><div class="t"><i style="width:${(list.length / max) * 100}%"></i></div></button>`).join('');
+    document.querySelectorAll('#depts .bar').forEach((b) => { b.onmouseenter = b.onfocus = b.onclick = () => showDept(b.dataset.d); });
+    if (teams[0]) showDept(teams[0][0]);
   },
 
   async emp() {
@@ -244,4 +360,5 @@ async function agent(q) {
 
 window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (token && MODS.includes(m) && m !== cur) { cur = m; shell(); } });
 if (!MODS.includes(cur)) cur = 'dash';
+startBackground();
 token ? shell() : loginView();
