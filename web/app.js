@@ -55,7 +55,7 @@ function loginView() {
       ? 'Demo employees: ahmed@alnoor.demo (delivery driver), grace@alnoor.demo (sales). Password Demo@2026.'
       : 'Demo accounts: admin@alnoor.demo (HR + payroll maker), checker@alnoor.demo (payroll checker). Password Demo@2026.'}</p>
     <a href="${empMode ? '/' : '/employee'}" style="font-size:13px">${empMode ? 'HR or manager? Sign in here' : 'Employee? Use the employee app'}</a>
-    <div class="powered" style="padding:12px 0 0"><span>POWERED BY</span><img src="devx-logo-light.png" alt="DevX Technologies"></div>
+    <div class="powered" style="padding:12px 0 0"><span>POWERED BY</span><img src="devx-logo-dark.png" alt="DevX Technologies"></div>
   </form></div>`;
   translateTree($('#root'), L);
   $('#lf').onsubmit = async (e) => {
@@ -82,7 +82,7 @@ function startBackground() {
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     const t = (performance.now() - t0) / 1000;
     ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.strokeStyle = 'rgba(17,17,17,0.045)'; ctx.lineWidth = 1; ctx.beginPath();
     for (let x = 0; x <= w; x += G) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); }
     for (let y = 0; y <= h; y += G) { ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); }
     ctx.stroke();
@@ -90,7 +90,7 @@ function startBackground() {
       const d = Math.hypot(x + G / 2 - bg.mx, y + G / 2 - bg.my);
       const wave = reduce ? 0 : Math.max(0, Math.sin(x * 0.013 + y * 0.021 - t * 1.4)) ** 8 * 0.3;
       const a = Math.max(wave, d < 200 ? (1 - d / 200) * 0.45 : 0);
-      if (a > 0.02) { ctx.fillStyle = `rgba(255,106,43,${a})`; ctx.fillRect(x + 4, y + 4, G - 8, G - 8); }
+      if (a > 0.02) { ctx.fillStyle = `rgba(255,91,31,${a * 0.45})`; ctx.fillRect(x + 4, y + 4, G - 8, G - 8); }
     }
     if (!reduce) bg.raf = requestAnimationFrame(draw);
   };
@@ -154,31 +154,28 @@ function shell() {
   document.documentElement.dir = L === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = L;
   if (!mods().includes(cur)) cur = mods()[0];
   document.body.classList.toggle('empmode', !isStaffUser());
-  $('#root').innerHTML = `<div class="app ${collapsed ? 'collapsed' : ''} ${isStaffUser() ? '' : 'emp'}"><nav class="rail" aria-label="Main">
-    <div class="brand"><span class="mark">W</span><div class="fade"><b>Wasl</b><span class="by">POWERED BY <img src="devx-logo-light.png" alt="DevX Technologies"></span></div></div>
-    <div class="sect fade">WORKSPACE</div>
-    ${mods().map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m])}<span class="fade">${t(m)}</span></button>`).join('')}
-    <div class="rail-foot">
-      <div class="who"><span class="av">${esc(ini(me.name))}</span><div class="fade" style="min-width:0"><b>${esc(me.name)}</b><span>${esc(me.roles.join(', '))}</span></div></div>
-      <button class="btn sm fade" id="so">${t('signout')}</button>
-      <button class="collapse" id="col" aria-label="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg><span class="fade">Collapse</span></button>
-    </div>
-  </nav><main>
-    <div class="top"><form class="cmd" id="cf"><span class="k">AI ⌘</span><input id="cmd" autocomplete="off" placeholder="${esc(isStaffUser() ? t('ph') : 'Ask… e.g. I need a salary certificate for Emirates NBD')}"><button class="btn pri sm" type="submit">${t('run')}</button></form>
-    ${isStaffUser() ? '<label class="sr" for="estSel">Entity</label><select id="estSel" class="btn" style="max-width:240px" title="Entity"></select>' : ''}
-    <div style="position:relative"><button class="btn" id="bell" aria-label="Notifications" title="Notifications">${icon('M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0', 18)}<span id="bellCt" class="ct" hidden></span></button>
-      <div id="bellPanel" class="panel" hidden style="position:absolute;inset-inline-end:0;top:calc(100% + 8px);width:min(380px,90vw);z-index:30;max-height:60vh;overflow:auto;padding:14px 16px"></div></div>
-    <button class="btn" id="lb">${t('lang')}</button></div>
+    $('#root').innerHTML = `<div class="app ${isStaffUser() ? '' : 'emp'}">
+  <header class="topbar"><div class="topbar-in">
+    <a class="brand" href="${isStaffUser() ? '/' : '/employee'}" aria-label="Wasl home"><span class="mark">W</span><span class="brand-txt"><b>Wasl</b><span class="by">by <img src="devx-logo-dark.png" alt="DevX Technologies"></span></span></a>
+    <nav class="navpills" aria-label="Main">${mods().map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m], 18)}<span>${t(m)}</span></button>`).join('')}</nav>
+    <div class="actions">
+      <div style="position:relative"><button class="iconbtn" id="bell" aria-label="Notifications" title="Notifications">${icon('M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0', 18)}<span id="bellCt" class="ct" hidden></span></button>
+        <div id="bellPanel" class="panel popover" hidden></div></div>
+      <button class="iconbtn txt" id="lb" title="Language">${t('lang')}</button>
+      <div style="position:relative"><button class="avatarbtn" id="whoBtn" aria-haspopup="true" aria-expanded="false"><span class="av">${esc(ini(me.name))}</span><span class="who-txt"><b>${esc(me.name)}</b><small>${esc(isStaffUser() ? me.roles.map((r) => r.replace('_', ' ')).join(', ') : 'Employee')}</small></span></button>
+        <div id="whoMenu" class="panel popover" hidden style="width:240px"><div style="font-weight:600">${esc(me.name)}</div><div style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(me.email || '')}</div><button class="btn" id="so" style="width:100%">${t('signout')}</button></div></div>
+    </div></div></header>
+  <main>
+    <div class="top"><form class="cmd" id="cf">${icon('M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z', 18)}<input id="cmd" autocomplete="off" placeholder="${esc(isStaffUser() ? t('ph') : 'Ask… e.g. I need a salary certificate for Emirates NBD')}"><button class="btn pri sm" type="submit">${t('run')}</button></form>
+    ${isStaffUser() ? '<label class="sr" for="estSel">Entity</label><select id="estSel" class="btn" style="max-width:260px" title="Entity"></select>' : ''}</div>
     <div class="chips" id="chips" style="margin-bottom:18px"></div>
     <div id="agent"></div><section id="view"><div class="loading">Loading…</div></section>
   </main></div>`;
   document.querySelectorAll('.nav').forEach((b) => (b.onclick = () => go(b.dataset.m)));
   $('#so').onclick = signOut;
-  $('#col').onclick = () => {
-    collapsed = !collapsed; localStorage.setItem('wasl_rail', collapsed ? '1' : '0');
-    $('.app').classList.toggle('collapsed', collapsed);
-    $('#col').setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
-  };
+  $('#whoBtn').onclick = (e) => { e.stopPropagation(); const m = $('#whoMenu'); m.hidden = !m.hidden; $('#whoBtn').setAttribute('aria-expanded', String(!m.hidden)); };
+  if (!window.__whoBound) { window.__whoBound = true; document.addEventListener('click', (e) => { const m = $('#whoMenu'); if (m && !m.hidden && !e.target.closest('#whoMenu')) m.hidden = true; }); }
+  { const on = document.querySelector('.navpills .nav.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' }); }
   $('#lb').onclick = () => { L = L === 'en' ? 'ar' : 'en'; localStorage.setItem('wasl_lang', L); shell(); };
   $('#cf').onsubmit = (e) => { e.preventDefault(); const q = $('#cmd').value.trim(); if (!q) return; if (isStaffUser()) agent(q); else { pendingQuestion = q; go('eai'); } };
   ['Hire Omar Al-Maktoum as Senior Frontend Engineer, AED 22,000, start Nov 1', 'Ahmed Khan wants 3 days annual leave from 26 Oct', 'Salary certificate for Priya Menon addressed to Emirates NBD'].forEach((c) => {
@@ -202,7 +199,7 @@ async function loadBell() {
     const unread = list.filter((n) => !n.read).length;
     const ct = $('#bellCt'); if (ct) { ct.hidden = !unread; ct.textContent = unread > 9 ? '9+' : unread; }
     const panel = $('#bellPanel');
-    panel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-family:var(--f-display);text-transform:uppercase;letter-spacing:.04em">Notifications</b><button class="btn sm" id="readAll">Mark all read</button></div>
+    panel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-family:var(--f-display);letter-spacing:-.01em">Notifications</b><button class="btn sm" id="readAll">Mark all read</button></div>
       ${list.length ? list.map((n) => `<div class="row" style="padding:10px 0"><span class="sev" style="background:var(--${sevVar(n.severity)})"></span><div class="grow"><div style="font-size:14px;${n.read ? 'color:var(--muted)' : ''}">${esc(n.title)}</div><div style="font-size:12px;color:var(--muted)">${esc(n.body || '')} · ${new Date(n.createdAt).toLocaleDateString('en-GB')}</div></div>${n.link ? `<button class="btn sm" data-link="${esc(n.link.slice(1))}">Open</button>` : ''}</div>`).join('') : '<div class="empty">No notifications yet.</div>'}`;
     translateTree(panel, L);
     $('#bell').onclick = () => { panel.hidden = !panel.hidden; };
@@ -211,7 +208,23 @@ async function loadBell() {
   } catch { /* bell is optional */ }
 }
 function go(m) { cur = m; location.hash = m; shell(); }
-const V = (html) => { $('#view').innerHTML = html; translateTree($('#view'), L); };
+const V = (html) => { $('#view').innerHTML = html; translateTree($('#view'), L); animateView($('#view')); };
+// Entrance motion: staggered card rise + count-up numbers (skipped for reduced-motion users)
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animateView(root) {
+  if (REDUCE) return;
+  root.querySelectorAll('.panel, .idcard').forEach((el, i) => { el.style.setProperty('--i', Math.min(i, 12)); el.classList.add('rise'); });
+  root.querySelectorAll('.stat .v, .big').forEach((el) => {
+    const node = [...el.childNodes].find((n) => n.nodeType === 3 && /\d/.test(n.textContent));
+    if (!node) return;
+    const m = node.textContent.match(/^(\s*)([\d,]+(?:\.\d+)?)(.*)$/s); if (!m) return;
+    const target = parseFloat(m[2].replace(/,/g, '')); if (!isFinite(target) || target === 0) return;
+    const dec = (m[2].split('.')[1] || '').length, comma = m[2].includes(','), t0 = performance.now(), dur = 900;
+    const fmt = (v) => { const x = v.toFixed(dec); return comma ? Number(x).toLocaleString('en-AE', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : x; };
+    const step = (now) => { const p = Math.min(1, (now - t0) / dur), e = 1 - (1 - p) ** 3; node.textContent = m[1] + fmt(target * e) + m[3]; if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+}
 const sevVar = (s) => ({ bad: 'bad', warn: 'warn', info: 'accent' }[s] || 'accent');
 const pill = (cls, txt) => `<span class="pill ${cls}">${esc(txt)}</span>`;
 
@@ -221,7 +234,7 @@ const views = {
     const [d, runs, emps] = await Promise.all([api('/dashboard'), api('/payroll/runs'), api('/employees?status=active')]);
     const k = (f) => (f >= 100000000 ? `${Math.round(f / 100000)}k` : AED0(f));
     const first = (me.name || '').split(' ')[0];
-    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
     V(`<div class="eyebrow">${esc(today)}</div>
     <h1>Good day, <em>${esc(first)}</em></h1><p class="sub">Everything due across your establishments this month, ranked by risk.</p>
     <div class="grid g4">
@@ -256,13 +269,13 @@ const views = {
       const ticks = [0, 1, 2, 3].map((i) => lo + ((hi - lo) * i) / 3);
       const mon = (p) => new Date(p + '-01').toLocaleDateString('en-GB', { month: 'short' });
       el.innerHTML = `<svg viewBox="0 0 680 230" role="img" aria-label="Net payroll trend">
-        <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6a2b" stop-opacity=".3"/><stop offset="1" stop-color="#ff6a2b" stop-opacity="0"/></linearGradient></defs>
-        ${ticks.map((v) => `<line x1="40" x2="672" y1="${py(v)}" y2="${py(v)}" stroke="#1f4b59"/><text x="0" y="${py(v) + 4}" fill="#a9c0c8" font-size="11">${Math.round(v)}</text>`).join('')}
+        <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5b1f" stop-opacity=".3"/><stop offset="1" stop-color="#ff5b1f" stop-opacity="0"/></linearGradient></defs>
+        ${ticks.map((v) => `<line x1="40" x2="672" y1="${py(v)}" y2="${py(v)}" stroke="#ecece8"/><text x="0" y="${py(v) + 4}" fill="#8a8a84" font-size="11">${Math.round(v)}</text>`).join('')}
         <path d="${line} L${X1} ${Y0} L${X0} ${Y0} Z" fill="url(#ga)"/>
-        <path d="${line}" fill="none" stroke="#ff7a3d" stroke-width="2.5" stroke-linejoin="round"/>
-        ${data.map((x, i) => `<text x="${px(i)}" y="226" fill="#a9c0c8" font-size="11" text-anchor="middle">${mon(x.p)}</text>`).join('')}
-        <circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="4.5" fill="#ff7a3d"/>
-        <g id="hov" visibility="hidden"><line id="hl" y1="12" y2="200" stroke="#ff7a3d" stroke-opacity=".4" stroke-dasharray="3 4"/><circle id="hc" r="6" fill="#0f2e39" stroke="#ff7a3d" stroke-width="2.5"/></g>
+        <path d="${line}" fill="none" stroke="#ff5b1f" stroke-width="2.5" stroke-linejoin="round"/>
+        ${data.map((x, i) => `<text x="${px(i)}" y="226" fill="#8a8a84" font-size="11" text-anchor="middle">${mon(x.p)}</text>`).join('')}
+        <circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="4.5" fill="#ff5b1f"/>
+        <g id="hov" visibility="hidden"><line id="hl" y1="12" y2="200" stroke="#ff5b1f" stroke-opacity=".4" stroke-dasharray="3 4"/><circle id="hc" r="6" fill="#ffffff" stroke="#ff5b1f" stroke-width="2.5"/></g>
       </svg><div class="tip" id="tip" hidden></div>`;
       const svg = el.querySelector('svg'), tip = $('#tip');
       svg.onmousemove = (e) => {
@@ -336,16 +349,16 @@ const views = {
         <div id="colLabels" style="display:flex;gap:16px;margin-top:8px"></div></div>
       <div class="panel"><h2>Pay mix</h2><div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
         <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Pay mix">
-          <circle cx="70" cy="70" r="52" fill="none" stroke="#0b2530" stroke-width="18"/>
-          <circle cx="70" cy="70" r="52" fill="none" stroke="#ff6a2b" stroke-width="18" stroke-dasharray="${seg(fixedT)} 999" transform="rotate(-90 70 70)"/>
-          <circle cx="70" cy="70" r="52" fill="none" stroke="#7fd3e6" stroke-width="18" stroke-dasharray="${seg(varT)} 999" stroke-dashoffset="${-seg(fixedT)}" transform="rotate(-90 70 70)"/>
-          <circle cx="70" cy="70" r="52" fill="none" stroke="#f5c542" stroke-width="18" stroke-dasharray="${seg(dedT)} 999" stroke-dashoffset="${-seg(fixedT) - seg(varT)}" transform="rotate(-90 70 70)"/>
-          <text x="70" y="66" text-anchor="middle" fill="#a9c0c8" font-size="11">NET AED</text>
-          <text x="70" y="88" text-anchor="middle" fill="#fff" font-size="22" font-weight="800" font-family="Barlow Condensed, sans-serif">${Math.round(run.totals.netFils / 100000)}k</text></svg>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#f1f1ee" stroke-width="18"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#ff5b1f" stroke-width="18" stroke-dasharray="${seg(fixedT)} 999" transform="rotate(-90 70 70)"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#111111" stroke-width="18" stroke-dasharray="${seg(varT)} 999" stroke-dashoffset="${-seg(fixedT)}" transform="rotate(-90 70 70)"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#d99a06" stroke-width="18" stroke-dasharray="${seg(dedT)} 999" stroke-dashoffset="${-seg(fixedT) - seg(varT)}" transform="rotate(-90 70 70)"/>
+          <text x="70" y="66" text-anchor="middle" fill="#8a8a84" font-size="11">NET AED</text>
+          <text x="70" y="88" text-anchor="middle" fill="#111" font-size="22" font-weight="600" font-family="Geist, sans-serif">${Math.round(run.totals.netFils / 100000)}k</text></svg>
         <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
-          <div><span style="display:inline-block;width:10px;height:10px;background:#ff6a2b;margin-inline-end:8px"></span>Fixed ${Math.round((fixedT / gross) * 100)}%</div>
-          <div><span style="display:inline-block;width:10px;height:10px;background:#7fd3e6;margin-inline-end:8px"></span>Overtime &amp; commission ${Math.round((varT / gross) * 100)}%</div>
-          <div><span style="display:inline-block;width:10px;height:10px;background:#f5c542;margin-inline-end:8px"></span>Deductions ${Math.round((dedT / gross) * 100)}%</div></div></div></div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#ff5b1f;margin-inline-end:8px"></span>Fixed ${Math.round((fixedT / gross) * 100)}%</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#111111;margin-inline-end:8px"></span>Overtime &amp; commission ${Math.round((varT / gross) * 100)}%</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#d99a06;margin-inline-end:8px"></span>Deductions ${Math.round((dedT / gross) * 100)}%</div></div></div></div>
     </div>
     <div class="grid g3" style="margin-top:16px">
       <div class="panel span2"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0" id="regTitle">Register · all teams</h2><button class="btn sm" id="regAll" hidden>Show all teams</button></div>
@@ -383,9 +396,9 @@ const views = {
       $('#reg').innerHTML = rows.map((l) => `<tr><td>${esc(l.employeeName)}</td><td style="color:var(--muted)">${esc(deptOf[String(l.employeeId)] || '')}</td><td class="r num">${AED(l.fixedFils)}</td><td class="r num">${AED(l.variableFils)}</td><td class="r num">${AED(l.netFils)}</td><td>${l.held ? pill('p-bad', 'Held') : l.flags.some((f) => f.severity === 'warn') ? pill('p-warn', 'Review') : l.unpaidLeaveDays ? pill('p-warn', `${l.unpaidLeaveDays}d unpaid`) : pill('p-ok', 'Ready')}</td>${released ? `<td><button class="btn sm" data-slip="${l.employeeId}">View</button></td>` : ''}</tr>`).join('');
       document.querySelectorAll('[data-slip]').forEach((b) => (b.onclick = () => openHtml(`/payroll/runs/${run._id}/payslips/${b.dataset.slip}`)));
       $('#regTitle').textContent = `Register · ${team || 'all teams'}`; $('#regAll').hidden = !team;
-      document.querySelectorAll('#cols button').forEach((b) => { const on = b.dataset.t === team; b.querySelector('i').style.background = team ? (on ? 'var(--accent)' : '#4a2f26') : '#a84a1f'; });
+      document.querySelectorAll('#cols button').forEach((b) => { const on = b.dataset.t === team; b.querySelector('i').style.background = team ? (on ? 'var(--accent)' : '#e9e9e5') : '#1a1a1a'; });
     };
-    $('#cols').innerHTML = tlist.map(([n, v]) => `<button data-t="${esc(n)}" aria-label="${esc(n)} AED ${Math.round(v / 100000)} thousand" style="all:unset;cursor:pointer;flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px"><span class="num" style="font-size:12px;color:var(--muted)">${Math.round(v / 100000)}k</span><i style="display:block;width:100%;max-width:60px;height:0%;background:#a84a1f;border-radius:3px 3px 0 0;transition:height .6s cubic-bezier(.2,.8,.2,1),background .2s"></i></button>`).join('');
+    $('#cols').innerHTML = tlist.map(([n, v]) => `<button data-t="${esc(n)}" aria-label="${esc(n)} AED ${Math.round(v / 100000)} thousand" style="all:unset;cursor:pointer;flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px"><span class="num" style="font-size:12px;color:var(--muted)">${Math.round(v / 100000)}k</span><i style="display:block;width:100%;max-width:60px;height:0%;background:#1a1a1a;border-radius:3px 3px 0 0;transition:height .6s cubic-bezier(.2,.8,.2,1),background .2s"></i></button>`).join('');
     $('#colLabels').innerHTML = tlist.map(([n]) => `<span style="flex:1;text-align:center;font-size:12px;color:var(--muted)">${esc(n)}</span>`).join('');
     requestAnimationFrame(() => document.querySelectorAll('#cols button').forEach((b, i) => { b.querySelector('i').style.height = `${(tlist[i][1] / tmax) * 88}%`; }));
     document.querySelectorAll('#cols button').forEach((b) => (b.onclick = () => { team = team === b.dataset.t ? null : b.dataset.t; drawReg(); }));
@@ -438,8 +451,8 @@ const views = {
         ${a.checkpoint ? `<p class="note">Next checkpoint ${esc(a.checkpoint.date)}: ${a.checkpoint.pct}% of skilled roles.</p>` : ''}
         ${(a.alerts || []).map((al) => `<div class="row" style="padding:8px 0"><span class="sev" style="background:var(--${sevVar(al.severity)})"></span><div class="grow" style="font-size:13px">${esc(al.msg)}</div></div>`).join('')}</div>
       <div class="panel"><h2>Hire vs. pay the fine</h2>
-        <div class="field"><label class="lbl" for="pH" style="display:flex;justify-content:space-between">New UAE national hires <span class="num" id="pHv" style="color:var(--accent-hi)"></span></label><input id="pH" type="range" min="0" max="4" step="1" value="${a.gap}" style="accent-color:#ff6a2b"></div>
-        <div class="field" style="margin-top:12px"><label class="lbl" for="pW" style="display:flex;justify-content:space-between">Monthly wage per hire <span class="num" id="pWv" style="color:var(--accent-hi)"></span></label><input id="pW" type="range" min="6000" max="15000" step="500" value="6500" style="accent-color:#ff6a2b"></div>
+        <div class="field"><label class="lbl" for="pH" style="display:flex;justify-content:space-between">New UAE national hires <span class="num" id="pHv" style="color:var(--accent-hi)"></span></label><input id="pH" type="range" min="0" max="4" step="1" value="${a.gap}" style="accent-color:#ff5b1f"></div>
+        <div class="field" style="margin-top:12px"><label class="lbl" for="pW" style="display:flex;justify-content:space-between">Monthly wage per hire <span class="num" id="pWv" style="color:var(--accent-hi)"></span></label><input id="pW" type="range" min="6000" max="15000" step="500" value="6500" style="accent-color:#ff5b1f"></div>
         <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px">
           <div class="panel" style="padding:14px;background:var(--surface-2)"><div class="lbl">Quota</div><div class="big" id="pQ" style="font-size:34px"></div></div>
           <div class="panel" style="padding:14px;background:var(--surface-2)"><div class="lbl">Fine / year</div><div class="big" id="pF" style="font-size:34px"></div></div>
@@ -462,7 +475,7 @@ const views = {
 
   async docs() {
     const docs = await api('/documents/expiring?days=120');
-    const col = (d) => (d <= 14 ? '#ff5a5f' : d <= 30 ? '#f5c542' : '#4fd69a');
+    const col = (d) => (d <= 14 ? '#e5484d' : d <= 30 ? '#d99a06' : '#16a34a');
     const hash = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
     const dots = docs.map((d, i) => {
       // golden-angle spacing spreads points evenly around the radar; hash keeps each document's spot stable
@@ -478,23 +491,23 @@ const views = {
     <div class="grid g2">
       <div class="panel" style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
         <svg viewBox="0 0 360 360" width="340" style="max-width:100%;height:auto;flex:0 1 340px" role="img" aria-label="Document expiry radar">
-          <defs><linearGradient id="beam" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff6a2b" stop-opacity="0"/><stop offset="1" stop-color="#ff6a2b" stop-opacity=".35"/></linearGradient></defs>
-          ${[30, 60, 90, 120].map((dd) => { const r = 14 + (dd / 120) * 146; return `<circle cx="180" cy="180" r="${r}" fill="none" stroke="${dd === 30 ? '#6a3520' : '#2a5a69'}"/><text x="184" y="${180 - r + 12}" fill="#a9c0c8" font-size="10">${dd}d</text>`; }).join('')}
-          <line x1="20" y1="180" x2="340" y2="180" stroke="#1f4b59"/><line x1="180" y1="20" x2="180" y2="340" stroke="#1f4b59"/>
+          <defs><linearGradient id="beam" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff5b1f" stop-opacity="0"/><stop offset="1" stop-color="#ff5b1f" stop-opacity=".35"/></linearGradient></defs>
+          ${[30, 60, 90, 120].map((dd) => { const r = 14 + (dd / 120) * 146; return `<circle cx="180" cy="180" r="${r}" fill="none" stroke="${dd === 30 ? '#ffd3bf' : '#e6e6e1'}"/><text x="184" y="${180 - r + 12}" fill="#8a8a84" font-size="10">${dd}d</text>`; }).join('')}
+          <line x1="20" y1="180" x2="340" y2="180" stroke="#ecece8"/><line x1="180" y1="20" x2="180" y2="340" stroke="#ecece8"/>
           <g class="rd-sweep"><path d="M180 180 L340 180 A160 160 0 0 0 293 67 Z" fill="url(#beam)"/></g>
-          ${dots.map((p, i) => `<g class="rd-dot" data-i="${i}" tabindex="0" role="button" aria-label="${esc(p.d.holder)}, ${esc(p.d.docType.replace(/_/g, ' '))}, ${p.d.daysLeft} days"><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="${col(p.d.daysLeft)}" fill-opacity=".18"/><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5.5" fill="${col(p.d.daysLeft)}" stroke="#0f2e39" stroke-width="2"/></g>`).join('')}
-          <circle cx="180" cy="180" r="4" fill="#ff7a3d"/>
+          ${dots.map((p, i) => `<g class="rd-dot" data-i="${i}" tabindex="0" role="button" aria-label="${esc(p.d.holder)}, ${esc(p.d.docType.replace(/_/g, ' '))}, ${p.d.daysLeft} days"><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="${col(p.d.daysLeft)}" fill-opacity=".18"/><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5.5" fill="${col(p.d.daysLeft)}" stroke="#ffffff" stroke-width="2"/></g>`).join('')}
+          <circle cx="180" cy="180" r="4" fill="#ff5b1f"/>
         </svg>
         <div id="rdSel" style="flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:10px"></div>
       </div>
       <div class="panel"><h2>Next 12 weeks</h2><div id="wkCap" style="font-size:13px;color:var(--muted);min-height:40px"></div>
         <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:10px">
-          ${week.map((w, i) => `<button class="wk" data-w="${i}" aria-label="Week ${i + 1}: ${w.length} documents" style="all:unset;cursor:pointer;display:flex;flex-direction:column;gap:4px"><span style="height:52px;border-radius:4px;display:grid;place-items:center;font-family:var(--f-mono);font-size:15px;font-weight:600;background:${['#0b2530', '#5a2e1a', '#a5481c', '#ff6a2b'][Math.min(3, w.length)]};color:${w.length >= 3 ? '#0b2530' : '#fff'};border:1px solid transparent">${w.length}</span><span style="font-size:11px;color:var(--muted);text-align:center">W${i + 1}</span></button>`).join('')}
+          ${week.map((w, i) => `<button class="wk" data-w="${i}" aria-label="Week ${i + 1}: ${w.length} documents" style="all:unset;cursor:pointer;display:flex;flex-direction:column;gap:4px"><span style="height:52px;border-radius:4px;display:grid;place-items:center;font-family:var(--f-mono);font-size:15px;font-weight:600;background:${['#f1f1ee', '#ffd9c7', '#ff9a6b', '#ff5b1f'][Math.min(3, w.length)]};color:${w.length >= 2 ? '#fff' : '#111'};border:1px solid transparent">${w.length}</span><span style="font-size:11px;color:var(--muted);text-align:center">W${i + 1}</span></button>`).join('')}
         </div>
         <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:16px">
-          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff5a5f;margin-inline-end:6px"></span>≤ 14 days</span>
-          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f5c542;margin-inline-end:6px"></span>15–30 days</span>
-          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#4fd69a;margin-inline-end:6px"></span>30+ days</span></div></div>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#e5484d;margin-inline-end:6px"></span>≤ 14 days</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#d99a06;margin-inline-end:6px"></span>15–30 days</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#16a34a;margin-inline-end:6px"></span>30+ days</span></div></div>
     </div>
     <div class="panel tw" style="margin-top:16px"><table><thead><tr><th>Holder</th><th>Document</th><th>Expiry</th><th>Expires in</th><th>Renewal</th></tr></thead><tbody>
     ${docs.map((d) => `<tr><td>${esc(d.holder)}</td><td>${esc(d.docType.replace(/_/g, ' '))}</td><td class="mono">${fmtDate(d.expiryDate)}</td><td>${pill(d.daysLeft < 0 ? 'p-bad' : d.daysLeft <= 14 ? 'p-bad' : d.daysLeft <= 30 ? 'p-warn' : 'p-ok', d.daysLeft < 0 ? `${-d.daysLeft} days overdue` : `${d.daysLeft} days`)}</td>
@@ -504,7 +517,7 @@ const views = {
     const select = (i) => {
       const d = dots[i]?.d; if (!d) { $('#rdSel').innerHTML = '<div class="empty">Nothing due.</div>'; return; }
       const done = d.renewalCase?.status && d.renewalCase.status !== 'none';
-      $('#rdSel').innerHTML = `<div class="lbl">Selected</div><div style="font-family:var(--f-display);font-size:26px;font-weight:800;text-transform:uppercase;line-height:1.05">${esc(d.holder)}</div>
+      $('#rdSel').innerHTML = `<div class="lbl">Selected</div><div style="font-family:var(--f-display);font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.1">${esc(d.holder)}</div>
         <div style="color:var(--soft)">${esc(d.docType.replace(/_/g, ' '))}</div>
         <div class="big" style="color:${col(d.daysLeft)}">${d.daysLeft < 0 ? -d.daysLeft : d.daysLeft}<span style="font-size:16px;color:var(--muted);font-weight:500"> days ${d.daysLeft < 0 ? 'overdue' : 'left'}</span></div>
         <div style="font-size:13px;color:var(--muted)">Next step: ${esc(nextStep[d.docType] || 'Collect new copy')}</div>
@@ -516,7 +529,7 @@ const views = {
     const showWeek = (i) => {
       const w = week[i];
       $('#wkCap').textContent = `Week ${i + 1}: ${w.length ? w.map((d) => `${d.holder} (${d.docType.replace(/_/g, ' ')})`).join(', ') : 'nothing due'}`;
-      document.querySelectorAll('.wk span:first-child').forEach((s, j) => (s.style.borderColor = j === i ? '#ff7a3d' : 'transparent'));
+      document.querySelectorAll('.wk span:first-child').forEach((s, j) => (s.style.borderColor = j === i ? '#ff5b1f' : 'transparent'));
     };
     document.querySelectorAll('.wk').forEach((b) => { b.onmouseenter = b.onfocus = b.onclick = () => showWeek(+b.dataset.w); });
     document.querySelectorAll('[data-case]').forEach((b) => (b.onclick = () => openCase(b.dataset.case)));
@@ -613,7 +626,7 @@ Object.assign(views, {
     <div class="meter" style="margin-bottom:18px"><i style="width:${(ck.done / ck.total) * 100}%"></i></div>
     <div class="grid g2"><div class="panel"><h2>Go-live checklist</h2>
       ${ck.items.map((i) => `<div class="chk"><span class="ic ${i.ok ? 'ok' : 'warn'}">${i.ok ? '✓' : '!'}</span><div style="flex:1;min-width:0"><div>${esc(i.label)}</div>${i.detail ? `<div style="font-size:12px;color:var(--muted)">${esc(i.detail)}</div>` : ''}</div>
-        ${i.manual ? `<label style="display:flex;gap:6px;align-items:center;font-size:13px;white-space:nowrap"><input type="checkbox" data-ck="${i.id}" ${i.ok ? 'checked' : ''} style="accent-color:#ff6a2b;width:18px;height:18px"> Done</label>` : ''}</div>`).join('')}</div>
+        ${i.manual ? `<label style="display:flex;gap:6px;align-items:center;font-size:13px;white-space:nowrap"><input type="checkbox" data-ck="${i.id}" ${i.ok ? 'checked' : ''} style="accent-color:#ff5b1f;width:18px;height:18px"> Done</label>` : ''}</div>`).join('')}</div>
     <div style="display:flex;flex-direction:column;gap:16px">
       <div class="panel"><h2>Import employees</h2><p style="margin:0 0 12px;color:var(--muted);font-size:14px">Upload a CSV. Every row is validated (IBAN checksum, 14-digit labour card, dates, duplicates) before anything is saved.</p>
         <div class="form"><div class="field"><label class="lbl" for="impEst">Establishment</label><select id="impEst">${ests.map((e) => `<option value="${e._id}">${esc(e.name)}</option>`).join('')}</select></div>
@@ -722,7 +735,7 @@ views.docs = async () => {
   const [emps, ests] = await Promise.all([api('/employees?status=active'), api('/establishments')]);
   const box = document.createElement('div');
   box.className = 'panel'; box.style.marginBottom = '16px';
-  box.innerHTML = `<details><summary style="cursor:pointer;font-family:var(--f-display);font-weight:700;font-size:20px;text-transform:uppercase;letter-spacing:.03em">Upload document</summary>
+  box.innerHTML = `<details><summary style="cursor:pointer;font-family:var(--f-display);font-weight:600;font-size:16px">Upload document</summary>
     <form id="upForm" class="form" style="margin-top:14px">
       <div class="field"><label class="lbl" for="upOwner">Holder</label><select id="upOwner"><optgroup label="Employees">${emps.map((e) => `<option value="employee:${e._id}">${esc(e.fullName)}</option>`).join('')}</optgroup><optgroup label="Company">${ests.map((e) => `<option value="establishment:${e._id}">${esc(e.name)}</option>`).join('')}</optgroup></select></div>
       <div class="field"><label class="lbl" for="upFile">File</label><input id="upFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div>
@@ -795,7 +808,7 @@ views.leave = async () => {
     <div class="field"><label class="lbl" for="hlType">Leave type</label><select id="hlType">${['annual', 'sick', 'parental', 'maternity', 'hajj', 'unpaid'].map((x) => `<option value="${x}">${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></div>
     <div class="field"><label class="lbl" for="hlS">Start date</label><input id="hlS" type="date" required></div><div class="field"><label class="lbl" for="hlE">End date</label><input id="hlE" type="date" required></div>
     <div class="field" id="hlBirthWrap" hidden><label class="lbl" for="hlBirth">Child's date of birth</label><input id="hlBirth" type="date"></div>
-    <div class="field"><label class="lbl" for="hlCert"><input id="hlCert" type="checkbox" style="accent-color:#ff6a2b"> Medical certificate attached</label></div>
+    <div class="field"><label class="lbl" for="hlCert"><input id="hlCert" type="checkbox" style="accent-color:#ff5b1f"> Medical certificate attached</label></div>
     <div id="hlPrev" style="grid-column:1/-1"></div>
     <div style="grid-column:1/-1;display:flex;gap:8px"><button class="btn" type="button" id="hlCheck">Check policy</button><button class="btn pri" type="submit">Submit</button></div></form></div>`);
   const bodyOf = () => ({ employeeId: $('#hlEmp').value, type: $('#hlType').value, startDate: $('#hlS').value, endDate: $('#hlE').value, childBirthDate: $('#hlBirth').value || undefined, certificateAttached: $('#hlCert').checked });
@@ -958,7 +971,7 @@ Object.assign(views, {
   async ehome() {
     const h = await api('/me/home');
     const first = h.profile.fullName.split(' ')[0];
-    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Dubai' }).toUpperCase();
+    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Dubai' });
     const pays = h.payslips; const lastPay = pays.at(-1);
     const maxPay = Math.max(1, ...pays.map((p) => p.netFils));
     const an = h.balances.annual || {}; const annPct = an.entitlement ? Math.min(100, (an.remaining / an.entitlement) * 100) : 0;
@@ -1070,7 +1083,7 @@ Object.assign(views, {
           <div style="color:var(--muted);font-size:14px;margin-top:4px">${esc(tg.jobTitle || '')} · ${esc(tg.department || '')}</div></div></div>
       <div class="idcard-qr">${q.createSvgTag({ cellSize: 5, margin: 2, scalable: true, alt: 'Employee tag QR code' })}</div>
       <div class="idcard-foot"><div><span class="lbl">Employee no.</span><b class="num">${esc(tg.employeeNo)}</b></div><div><span class="lbl">Joined</span><b class="num">${fmtDate(tg.joinDate)}</b></div><div><span class="lbl">Nationality</span><b>${esc(tg.nationality || '')}</b></div></div>
-      <div class="powered" style="padding:10px 0 0;border:0"><span>POWERED BY</span><img src="devx-logo-light.png" alt="DevX Technologies"></div>
+      <div class="powered" style="padding:10px 0 0;border:0"><span>POWERED BY</span><img src="devx-logo-dark.png" alt="DevX Technologies"></div>
     </div>`);
   },
 
