@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
 import { runAsSystem, runWithTenant } from './lib/tenantContext.js';
-import { Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, AuditLog } from './models/index.js';
+import { Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, AuditLog, Notification, ServiceRequest } from './models/index.js';
 import { buildUaeIban } from './lib/iban.js';
 import { toFils } from './lib/money.js';
 import { calculateLine } from './lib/payroll.js';
@@ -68,7 +68,8 @@ const FZ_TEAM = [
 await mongoose.connect(config.mongoUri);
 console.log('Connected. Resetting demo data…');
 await runAsSystem(async () => {
-  await Promise.all([Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun].map((m) => m.deleteMany({})));
+  await Promise.all([Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, Notification, ServiceRequest].map((m) => m.deleteMany({})));
+  await PayrollRun.syncIndexes().catch(() => {});
   await mongoose.connection.collection('auditlogs').deleteMany({});
 });
 
@@ -103,7 +104,7 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
 
   // Second establishment: a DMCC free-zone entity (outside the MOHRE quota)
   const fz = await Establishment.create({
-    name: 'Al Noor Global FZ-LLC', nameAr: 'النور جلوبال م.م.ح', jurisdiction: 'FREEZONE', freeZone: 'DMCC', rulePackId: 'UAE-MAINLAND', emirate: 'Dubai',
+    name: 'Al Noor Global FZ-LLC', nameAr: 'النور جلوبال م.م.ح', jurisdiction: 'FREEZONE', freeZone: 'DMCC', rulePackId: 'FREEZONE-STANDARD', emirate: 'Dubai',
     mohreId: '1000000058304', tradeLicenceNo: 'DMCC-209331', tradeLicenceExpiry: inDays(64), establishmentCardExpiry: inDays(91),
     wps: { agentName: 'Mashreq', agentRoutingCode: '203320101' },
   });
@@ -137,6 +138,27 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     { email: 'admin@alnoor.demo', name: 'Fatima Al Hashmi', passwordHash: hash, roles: ['hr_admin', 'payroll_maker'], employeeId: by('Fatima Al Hashmi')._id },
     { email: 'checker@alnoor.demo', name: 'Priya Menon', passwordHash: hash, roles: ['payroll_checker'], employeeId: by('Priya Menon')._id },
     { email: 'manager@alnoor.demo', name: 'Rashid Al Suwaidi', passwordHash: hash, roles: ['manager'], employeeId: by('Rashid Al Suwaidi')._id },
+    // Employee self-service logins
+    { email: 'ahmed@alnoor.demo', name: 'Ahmed Khan', passwordHash: hash, roles: ['employee'], employeeId: by('Ahmed Khan')._id },
+    { email: 'grace@alnoor.demo', name: 'Grace Okafor', passwordHash: hash, roles: ['employee'], employeeId: by('Grace Okafor')._id },
+  ]);
+  await Employee.updateMany({ _id: { $in: [by('Ahmed Khan')._id, by('Grace Okafor')._id] } }, { $set: { phone: '+971500000000' } });
+  await Employee.updateOne({ _id: by('Ahmed Khan')._id }, { $set: { email: 'ahmed@alnoor.demo' } });
+  await Employee.updateOne({ _id: by('Grace Okafor')._id }, { $set: { email: 'grace@alnoor.demo' } });
+
+  // A UAE national who resigned three weeks ago: their quota slot is in the 2-month replacement grace period
+  await Employee.create({
+    establishmentId: est._id, employeeNo: 'ANT-099', fullName: 'Mariam Al Ketbi', fullNameAr: 'مريم الكتبي', jobTitle: 'Customer Relations Officer', department: 'Sales', nationality: 'UAE', isUaeNational: true,
+    mohreSkillLevel: 3, joinDate: new Date('2023-04-02'), status: 'exited', exitDate: inDays(-21), pensionRegistered: true, paidViaWps: true,
+    compensation: { basicFils: toFils(7000), housingFils: toFils(2500), transportFils: toFils(1000) },
+  });
+
+  // Employee request centre
+  await ServiceRequest.create([
+    { employeeId: by('Ahmed Khan')._id, kind: 'letter', letterType: 'salary_certificate', addressee: 'Emirates NBD', lang: 'dual', status: 'open', reference: 'REQ-261018-A1B2', slaDueAt: inDays(1) },
+    { employeeId: by('Grace Okafor')._id, kind: 'letter', letterType: 'noc', addressee: 'Embassy of Nigeria', purpose: 'travelling to Lagos for annual leave', lang: 'dual', status: 'done', reference: 'REQ-261012-C3D4', closedAt: inDays(-5) },
+    { employeeId: by('Hassan Raza')._id, kind: 'bank_change', details: 'Moved salary account to Dubai Islamic Bank', payload: { iban: buildUaeIban('024', '1010000000123456') }, status: 'open', reference: 'REQ-261019-E5F6', slaDueAt: inDays(4) },
+    { employeeId: by('Layla Haddad')._id, kind: 'salary_query', details: 'Overtime from 28 September is missing on my last payslip', status: 'in_progress', reference: 'REQ-261016-G7H8', slaDueAt: inDays(2) },
   ]);
 
   // Documents
