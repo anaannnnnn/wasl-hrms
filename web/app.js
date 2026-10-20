@@ -862,23 +862,38 @@ function getLocation() {
   });
 }
 // Downscale any image source to a small JPEG data URL (keeps uploads ~40–80 KB)
-function toJpeg(source, w, h) {
-  const scale = Math.min(1, 480 / Math.max(w, h));
-  const c = document.createElement('canvas'); c.width = Math.round(w * scale); c.height = Math.round(h * scale);
-  const g = c.getContext('2d'); g.drawImage(source, 0, 0, c.width, c.height);
-  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, c.height - 22, c.width, 22);
-  g.fillStyle = '#fff'; g.font = '12px sans-serif'; g.fillText(`${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Dubai' })} GST`, 8, c.height - 7);
-  return c.toDataURL('image/jpeg', 0.72);
+let SITE = null; // work site of the signed-in employee (set by Home / Attendance)
+const kmOrM = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m >= 100000 ? 0 : 1)} km` : `${Math.round(m)} m`);
+function haversine(a, b) {
+  const R = 6371000, r = (d) => (d * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }
+// Downscale to a small JPEG and stamp time + GPS on it (keeps uploads ~40–80 KB, nothing is cropped)
+function toJpeg(source, w, h, gps) {
+  const scale = Math.min(1, 640 / Math.max(w, h));
+  const c = document.createElement('canvas'); c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+  const g = c.getContext('2d');
+  g.drawImage(source, 0, 0, c.width, c.height); // raw frames are un-mirrored; only the live preview is mirrored
+  const lines = [`${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'medium' })} GST`];
+  lines.push(gps?.lat != null ? `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)} ±${gps.accuracyM} m` : `Location: ${gps?.gpsError || 'not available'}`);
+  const fs = Math.max(13, Math.round(c.width / 34)), pad = Math.round(fs * 0.7), lh = Math.round(fs * 1.35), boxH = lines.length * lh + pad * 1.5;
+  g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(0, c.height - boxH, c.width, boxH);
+  g.fillStyle = '#fff'; g.font = `${fs}px system-ui, sans-serif`; g.textBaseline = 'top';
+  lines.forEach((t, i) => g.fillText(t, pad, c.height - boxH + pad * 0.75 + i * lh));
+  return c.toDataURL('image/jpeg', 0.75);
+}
+const fromImage = (im, gps) => toJpeg(im, im.naturalWidth, im.naturalHeight, gps);
 
-// Camera sheet: live front camera with a capture button; falls back to the phone's camera picker.
+// Camera sheet with a live location readout. Resolves { photo, gps } or null.
 function captureSelfie() {
   return new Promise((resolve) => {
     const sheet = document.createElement('div');
     sheet.className = 'sheet';
     sheet.innerHTML = `<div class="sheet-card panel" role="dialog" aria-modal="true" aria-label="Clock-in photo">
-      <h2 style="margin:0">Clock-in photo</h2><p style="margin:0;color:var(--muted);font-size:14px">Centre your face in the frame. The photo and your location are attached to today's clock-in.</p>
+      <h2 style="margin:0">Clock-in photo</h2><p style="margin:0;color:var(--muted);font-size:14px">Centre your face in the frame. Your photo, time and location are attached to this clock-in.</p>
       <div class="cam"><video id="camV" playsinline muted autoplay></video><div class="cam-ring"></div><img id="camP" alt="Captured photo" hidden></div>
+      <div class="gpsline" id="camGps" aria-live="polite"><span class="gdot wait"></span><span>Finding your location…</span></div>
       <div id="camMsg" style="font-size:13px;color:var(--muted)">Starting camera…</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn pri" id="camShot" disabled>Take photo</button>
@@ -888,12 +903,31 @@ function captureSelfie() {
         <button class="btn" id="camCancel">Cancel</button></div></div>`;
     document.body.appendChild(sheet);
     translateTree(sheet, L);
-    let stream = null, shot = null;
-    const v = sheet.querySelector('#camV'), img = sheet.querySelector('#camP'), msg = sheet.querySelector('#camMsg');
-    const stop = () => stream?.getTracks().forEach((tr) => tr.stop());
+    let stream = null, shot = null, gps = null, watch = null;
+    const v = sheet.querySelector('#camV'), img = sheet.querySelector('#camP'), msg = sheet.querySelector('#camMsg'), gl = sheet.querySelector('#camGps');
+    const paintGps = () => {
+      if (!gps) return;
+      if (gps.gpsError) {
+        gl.innerHTML = `<span class="gdot bad"></span><span><b>Location off:</b> ${esc(gps.gpsError)}. ${gps.gpsError.includes('denied') ? 'Allow location for this site in your browser settings (the lock icon in the address bar), then try again.' : 'You can still clock in; HR will see it was missing.'}</span>`;
+        return;
+      }
+      const dist = SITE?.lat != null ? haversine(gps, SITE) : null;
+      const inside = dist != null && dist <= (SITE.radiusM || 300) + Math.min(gps.accuracyM <= 250 ? gps.accuracyM : 0, 150);
+      const weak = gps.accuracyM > 250;
+      gl.innerHTML = `<span class="gdot ${dist == null ? 'ok' : inside ? 'ok' : 'warn'}"></span><span><b class="num">${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}</b> · ±${kmOrM(gps.accuracyM)}${weak ? ' (approximate: laptops often locate by network, phones are more precise)' : ''}${dist != null ? `<br>${inside ? 'At' : `${kmOrM(dist)} from`} ${esc(SITE.label || 'the work site')}${inside ? '' : ' · HR will review this clock-in'}` : ''}</span>`;
+    };
+    const stop = () => { stream?.getTracks().forEach((tr) => tr.stop()); if (watch != null) navigator.geolocation.clearWatch(watch); };
     const close = (val) => { stop(); sheet.remove(); resolve(val); };
+    // Keep refining the fix while the camera is open; the most accurate reading wins.
+    if (navigator.geolocation) {
+      watch = navigator.geolocation.watchPosition(
+        (p) => { const n = { lat: p.coords.latitude, lng: p.coords.longitude, accuracyM: Math.round(p.coords.accuracy) }; if (!gps || gps.gpsError || n.accuracyM <= gps.accuracyM) { gps = n; paintGps(); } },
+        (e) => { if (!gps || gps.gpsError) { gps = { gpsError: e.code === 1 ? 'Location permission denied' : e.code === 3 ? 'Location timed out' : 'Location unavailable' }; paintGps(); } },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+      );
+    } else { gps = { gpsError: 'This browser cannot share location' }; paintGps(); }
     const show = (dataUrl) => {
-      shot = dataUrl; img.src = dataUrl; img.hidden = false; v.hidden = true;
+      shot = dataUrl; img.src = dataUrl; img.hidden = false; v.hidden = true; sheet.querySelector('.cam-ring').hidden = true;
       sheet.querySelector('#camShot').hidden = true; sheet.querySelector('#camRetake').hidden = false; sheet.querySelector('#camUse').hidden = false; msg.textContent = 'Looks good?';
     };
     (async () => {
@@ -905,22 +939,21 @@ function captureSelfie() {
         msg.textContent = 'Camera access is blocked. Use “Use phone camera” instead, or allow camera access in your browser settings.';
       }
     })();
-    sheet.querySelector('#camShot').onclick = () => show(toJpeg(v, v.videoWidth || 640, v.videoHeight || 480));
-    sheet.querySelector('#camRetake').onclick = () => { img.hidden = true; v.hidden = false; shot = null; sheet.querySelector('#camShot').hidden = false; sheet.querySelector('#camRetake').hidden = true; sheet.querySelector('#camUse').hidden = true; };
-    sheet.querySelector('#camUse').onclick = () => close(shot);
+    sheet.querySelector('#camShot').onclick = () => show(toJpeg(v, v.videoWidth || 640, v.videoHeight || 480, gps));
+    sheet.querySelector('#camRetake').onclick = () => { img.hidden = true; v.hidden = false; sheet.querySelector('.cam-ring').hidden = false; shot = null; sheet.querySelector('#camShot').hidden = false; sheet.querySelector('#camRetake').hidden = true; sheet.querySelector('#camUse').hidden = true; };
+    sheet.querySelector('#camUse').onclick = () => close({ photo: shot, gps: gps || { gpsError: 'Location was still loading' } });
     sheet.querySelector('#camCancel').onclick = () => close(null);
     sheet.querySelector('#camFile').onchange = (e) => {
       const f = e.target.files[0]; if (!f) return;
-      const im = new Image(); im.onload = () => show(toJpeg(im, im.naturalWidth, im.naturalHeight)); im.src = URL.createObjectURL(f);
+      const im = new Image(); im.onload = () => show(fromImage(im, gps)); im.src = URL.createObjectURL(f);
     };
   });
 }
 
 async function doClockIn(after) {
-  const photo = await captureSelfie();
-  if (!photo) return;
-  toast('Getting your location…');
-  const gps = await getLocation();
+  const got = await captureSelfie();
+  if (!got) return;
+  const { photo, gps } = got;
   try {
     const r = await api('/me/clock-in', { method: 'POST', body: { photo, ...gps, device: navigator.userAgent.slice(0, 180) } });
     toast(r.message + (r.record.clockIn?.insideGeofence === false ? ' · outside the site, HR will review' : '') + (gps.gpsError ? ` · ${gps.gpsError}` : ''));
@@ -972,6 +1005,7 @@ function wireClockCard(rec, refresh) {
 Object.assign(views, {
   async ehome() {
     const h = await api('/me/home');
+    SITE = h.site;
     const first = h.profile.fullName.split(' ')[0];
     const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Dubai' });
     const pays = h.payslips; const lastPay = pays.at(-1);
@@ -1011,6 +1045,7 @@ Object.assign(views, {
   async eclock() {
     const month = localStorage.getItem('wasl_attmonth') || new Date().toISOString().slice(0, 7);
     const [t0, hist] = await Promise.all([api('/me/attendance/today'), api(`/me/attendance?month=${month}`)]);
+    SITE = t0.site ? { ...t0.site, label: t0.site.label || t0.site.name } : null;
     const s = hist.summary;
     const months = Array.from({ length: 4 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - i); return d.toISOString().slice(0, 7); });
     V(`<div class="eyebrow">ATTENDANCE · ${esc(t0.date)}${t0.ramadan ? ' · RAMADAN HOURS' : ''}</div><h1>Clock <em>in &amp; out</em></h1>

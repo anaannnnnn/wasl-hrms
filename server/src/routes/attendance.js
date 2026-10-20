@@ -129,7 +129,7 @@ r.get('/me/home', ah(async (req, res) => {
   const pays = runs.map((run) => ({ runId: run._id, period: run.period, type: run.type, netFils: lineOf(run)?.netFils || 0 })).reverse();
   res.json({
     profile: { fullName: emp.fullName, fullNameAr: emp.fullNameAr, employeeNo: emp.employeeNo, jobTitle: emp.jobTitle, department: emp.department, joinDate: emp.joinDate, establishment: site?.name },
-    date, today: dayView(today), shift: site?.shift, site: site?.geo ? { label: site.geo.label || site.name, radiusM: site.geo.radiusM } : null,
+    date, today: dayView(today), shift: site?.shift, site: site?.geo ? { label: site.geo.label || site.name, radiusM: site.geo.radiusM, lat: site.geo.lat, lng: site.geo.lng } : null,
     month: summarize(monthRecs),
     balances: leaveBalances({ employee: emp, requests: leaves, rulePackId: site?.rulePackId }),
     upcomingLeave: leaves.filter((l) => ['pending', 'approved'].includes(l.status) && new Date(l.endDate) >= new Date(date)).slice(0, 3),
