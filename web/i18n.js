@@ -2,6 +2,18 @@
 // aria-label or title that exactly matches a key. Data values (names, amounts, dates) are never touched.
 // Add phrases here as screens grow; untranslated text simply stays in English.
 export const AR = {
+  // employee app
+  'Home': 'الرئيسية', 'Attendance': 'الحضور', 'HR assistant': 'مساعد الموارد البشرية', 'My ID tag': 'بطاقتي', 'Documents': 'الوثائق',
+  'Clock in': 'تسجيل الحضور', 'Clock out': 'تسجيل الانصراف', 'On shift': 'في المناوبة', 'Shift complete': 'انتهت المناوبة', 'Not clocked in': 'لم يتم تسجيل الحضور',
+  'Selfie + location required': 'مطلوب صورة شخصية وموقع', 'Location captured': 'سيتم تسجيل الموقع', 'In': 'دخول', 'Out': 'خروج', 'Worked': 'ساعات العمل',
+  'Quick actions': 'إجراءات سريعة', 'Apply for leave': 'طلب إجازة', 'My payslips': 'قسائمي', 'Salary certificate': 'شهادة راتب', 'My documents': 'وثائقي',
+  'Ask HR assistant': 'اسأل مساعد الموارد البشرية', 'Annual leave left': 'رصيد الإجازة السنوية', 'Full-pay sick days': 'أيام مرضية بأجر كامل',
+  'Days present this month': 'أيام الحضور هذا الشهر', 'Last net pay · AED': 'آخر صافي راتب · درهم', 'Pay history': 'سجل الرواتب', 'Coming up': 'القادم',
+  'Public holiday': 'عطلة رسمية', 'My requests': 'طلباتي', 'New request': 'طلب جديد', 'Clock-in photo': 'صورة تسجيل الحضور', 'Take photo': 'التقاط صورة',
+  'Use phone camera': 'استخدام كاميرا الهاتف', 'Retake': 'إعادة', 'Use this photo': 'استخدام هذه الصورة', 'Where you clock in': 'موقع تسجيل الحضور',
+  'Open in Maps': 'فتح في الخرائط', 'Days present': 'أيام الحضور', 'Late arrivals': 'التأخيرات', 'Hours worked': 'ساعات العمل', 'Overtime hours': 'ساعات إضافية',
+  'History': 'السجل', 'Photo': 'الصورة', 'Send': 'إرسال', 'Employee no.': 'رقم الموظف', 'Clocked in': 'سجلوا الحضور', 'Outside the site': 'خارج الموقع',
+  'On approved leave': 'في إجازة معتمدة', 'On time': 'في الموعد', 'Late': 'متأخر', 'Outside site': 'خارج الموقع', 'No GPS': 'بلا موقع', 'Overtime': 'عمل إضافي',
   // navigation & shell
   'Command Center': 'مركز القيادة', 'Employees': 'الموظفون', 'Payroll & WPS': 'الرواتب ونظام حماية الأجور', 'Emiratisation': 'التوطين',
   'Document Radar': 'رادار الوثائق', 'Gratuity (EOSB)': 'مكافأة نهاية الخدمة', 'Leave': 'الإجازات', 'Audit log': 'سجل التدقيق',

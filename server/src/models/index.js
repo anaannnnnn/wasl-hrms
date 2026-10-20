@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantPlugin } from '../lib/tenantContext.js';
+import { encryptField, decryptField } from '../lib/fieldcrypt.js';
 
 const { Schema, model } = mongoose;
 const Id = Schema.Types.ObjectId;
@@ -14,6 +15,14 @@ export const Tenant = model('Tenant', new Schema({
     payrollCutoffDay: { type: Number, default: 25 }, gratuityDailyDivisor: { type: Number, default: 365 },
     gratuityCapBasis: { type: String, enum: ['total', 'basic'], default: 'total' },
     checklist: { backupsConfigured: Boolean, legalReviewDone: Boolean, bankFormatVerified: Boolean, staffTrained: Boolean },
+    requireMfaForStaff: { type: Boolean, default: false },
+    // UAE PDPL (Federal Decree-Law 45/2021) retention schedule — confirm periods with counsel
+    retention: {
+      notificationsDays: { type: Number, default: 180 },
+      agentRunsDays: { type: Number, default: 365 },
+      exitedEmployeeYears: { type: Number, default: 5 }, // personal data anonymised after this; payroll records kept
+      sifFilesYears: { type: Number, default: 5 },
+    },
   },
 }, { timestamps: true }));
 
@@ -26,6 +35,12 @@ const userSchema = new Schema({
   employeeId: { type: Id, ref: 'Employee' },
   establishmentIds: [{ type: Id, ref: 'Establishment' }],
   active: { type: Boolean, default: true },
+  // security
+  mfaEnabled: { type: Boolean, default: false },
+  mfaSecret: { type: String, select: false }, // encrypted
+  failedLogins: { type: Number, default: 0 },
+  lockedUntil: Date,
+  lastLoginAt: Date,
 }, { timestamps: true });
 userSchema.plugin(tenantPlugin);
 userSchema.index({ email: 1 }, { unique: true }); // email unique across platform for login
@@ -44,6 +59,9 @@ const estSchema = new Schema({
   tradeLicenceExpiry: Date,
   establishmentCardExpiry: Date,
   designatedSector: { type: Boolean, default: false },
+  // Work site used for GPS clock-in (geofence) and the default shift
+  geo: { lat: Number, lng: Number, radiusM: { type: Number, default: 300 }, label: String },
+  shift: { start: { type: String, default: '08:00' }, end: { type: String, default: '17:00' }, graceMin: { type: Number, default: 15 }, timezone: { type: String, default: 'Asia/Dubai' } },
   wps: { agentName: String, agentRoutingCode: { type: String, match: /^\d{9}$/ } },
 }, { timestamps: true });
 estSchema.plugin(tenantPlugin);
@@ -90,12 +108,26 @@ const empSchema = new Schema({
   dependents: [{ name: String, relation: String, dateOfBirth: Date }],
   emergencyContacts: [{ name: String, relation: String, phone: String }],
   leaveCarryForward: { type: Number, default: 0 },
+  legalHold: { type: Boolean, default: false }, // blocks retention anonymisation
+  anonymisedAt: Date,
   custom: { type: Schema.Types.Mixed, default: {} },
 }, { timestamps: true });
 empSchema.plugin(tenantPlugin);
 empSchema.index({ tenantId: 1, employeeNo: 1 }, { unique: true });
 empSchema.index({ tenantId: 1, establishmentId: 1, status: 1 });
-empSchema.pre('save', function () { if (this.bank?.iban) this.bank.ibanLast4 = this.bank.iban.slice(-4); });
+// Sensitive identifiers are encrypted at rest (AES-256-GCM, see lib/fieldcrypt.js) and decrypted for lean reads.
+const protectEmp = (d) => {
+  if (d.bank?.iban) { const plain = decryptField(d.bank.iban); d.bank.ibanLast4 = plain.slice(-4); d.bank.iban = encryptField(plain); }
+  if (d.labourCardNo) d.labourCardNo = encryptField(decryptField(d.labourCardNo));
+};
+const revealEmp = (d) => {
+  if (!d || typeof d !== 'object' || d instanceof mongoose.Document) return;
+  if (d.bank?.iban) d.bank.iban = decryptField(d.bank.iban);
+  if (d.labourCardNo) d.labourCardNo = decryptField(d.labourCardNo);
+};
+empSchema.pre('save', function () { protectEmp(this); });
+empSchema.pre('insertMany', function (next, docs) { try { docs.forEach(protectEmp); next(); } catch (e) { next(e); } });
+empSchema.post(['find', 'findOne'], (res) => { (Array.isArray(res) ? res : [res]).forEach(revealEmp); });
 export const Employee = model('Employee', empSchema);
 
 // ---------- Compliance documents ----------
@@ -234,3 +266,26 @@ const reqSchema = new Schema({
 reqSchema.plugin(tenantPlugin);
 reqSchema.index({ tenantId: 1, employeeId: 1, createdAt: -1 });
 export const ServiceRequest = model('ServiceRequest', reqSchema);
+
+// ---------- Attendance (clock in/out with GPS + selfie at clock-in) ----------
+const punch = { at: Date, lat: Number, lng: Number, accuracyM: Number, distanceM: Number, insideGeofence: Boolean, gpsError: String, device: String };
+const attSchema = new Schema({
+  employeeId: { type: Id, ref: 'Employee', required: true },
+  establishmentId: { type: Id, ref: 'Establishment' },
+  date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ }, // local work date (Asia/Dubai)
+  clockIn: punch,
+  clockOut: punch,
+  photo: { type: String, select: false }, // small JPEG data URL captured at clock-in
+  hasPhoto: { type: Boolean, default: false },
+  minutesWorked: Number,
+  lateMinutes: { type: Number, default: 0 },
+  overtimeMinutes: { type: Number, default: 0 },
+  status: { type: String, enum: ['present', 'late', 'absent', 'leave', 'holiday'], default: 'present' },
+  flags: [{ code: String, msg: String }],
+  note: String,
+  source: { type: String, enum: ['web', 'mobile', 'kiosk', 'hr'], default: 'web' },
+}, { timestamps: true });
+attSchema.plugin(tenantPlugin);
+attSchema.index({ tenantId: 1, employeeId: 1, date: 1 }, { unique: true });
+attSchema.index({ tenantId: 1, date: 1 });
+export const Attendance = model('Attendance', attSchema);

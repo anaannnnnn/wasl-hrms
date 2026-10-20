@@ -4,7 +4,8 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
 import { runAsSystem, runWithTenant } from './lib/tenantContext.js';
-import { Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, AuditLog, Notification, ServiceRequest } from './models/index.js';
+import { Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, AuditLog, Notification, ServiceRequest, Attendance } from './models/index.js';
+import { localParts } from './lib/attendance.js';
 import { buildUaeIban } from './lib/iban.js';
 import { toFils } from './lib/money.js';
 import { calculateLine } from './lib/payroll.js';
@@ -68,7 +69,7 @@ const FZ_TEAM = [
 await mongoose.connect(config.mongoUri);
 console.log('Connected. Resetting demo data…');
 await runAsSystem(async () => {
-  await Promise.all([Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, Notification, ServiceRequest].map((m) => m.deleteMany({})));
+  await Promise.all([Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, Notification, ServiceRequest, Attendance].map((m) => m.deleteMany({})));
   await PayrollRun.syncIndexes().catch(() => {});
   await mongoose.connection.collection('auditlogs').deleteMany({});
 });
@@ -80,6 +81,7 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     name: 'Al Noor Trading LLC', nameAr: 'شركة النور للتجارة ذ.م.م', jurisdiction: 'MAINLAND', rulePackId: 'UAE-MAINLAND', emirate: 'Dubai',
     mohreId: '1000000042817', tradeLicenceNo: 'DED-884213', tradeLicenceExpiry: inDays(37), establishmentCardExpiry: inDays(12),
     designatedSector: true, wps: { agentName: 'Emirates NBD', agentRoutingCode: '302620122' },
+    geo: { lat: 25.1385, lng: 55.2296, radiusM: 300, label: 'Al Quoz Industrial Area 3 warehouse' }, shift: { start: '08:00', end: '17:00', graceMin: 15 },
   });
 
   const emps = [];
@@ -107,6 +109,7 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     name: 'Al Noor Global FZ-LLC', nameAr: 'النور جلوبال م.م.ح', jurisdiction: 'FREEZONE', freeZone: 'DMCC', rulePackId: 'FREEZONE-STANDARD', emirate: 'Dubai',
     mohreId: '1000000058304', tradeLicenceNo: 'DMCC-209331', tradeLicenceExpiry: inDays(64), establishmentCardExpiry: inDays(91),
     wps: { agentName: 'Mashreq', agentRoutingCode: '203320101' },
+    geo: { lat: 25.0693, lng: 55.1413, radiusM: 250, label: 'JLT Cluster T office' }, shift: { start: '09:00', end: '18:00', graceMin: 15 },
   });
   const fzEmps = [];
   for (const [j, [name, nat, role, dept, basic, skill, join, uae]] of FZ_TEAM.entries()) {
@@ -246,6 +249,47 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     { actorId: admin._id, actorType: 'agent', action: 'agent.leave', entity: 'AgentRun', entityId: 'seed', correlationId: 'seed-0003' },
     { actorId: admin._id, actorType: 'user', action: 'document.renewal.open', entity: 'ComplianceDocument', entityId: 'seed', correlationId: 'seed-0004' },
   ]);
+
+  // Two weeks of attendance so the HR monitor and employee history have data (Mon–Fri; UAE weekend is Sat–Sun).
+  // Ahmed and Grace are left un-clocked today so their logins can demo the selfie + GPS clock-in.
+  const site = { lat: 25.1385, lng: 55.2296 };
+  const rnd = (i) => { const x = Math.sin(i * 9301 + 49297) * 233280; return x - Math.floor(x); };
+  const attRows = [];
+  const todayLocal = localParts(new Date()).date;
+  for (let back = 13; back >= 0; back--) {
+    const day = new Date(Date.now() - back * 864e5);
+    const { date, weekday } = localParts(day);
+    if (weekday === 'Sat' || weekday === 'Sun') continue;
+    emps.forEach((e, i) => {
+      const seedN = back * 100 + i;
+      if (rnd(seedN) < 0.06) return; // occasional absence
+      if (date === todayLocal && ['Ahmed Khan', 'Grace Okafor'].includes(e.fullName)) return;
+      const lateBy = rnd(seedN + 1) < 0.15 ? 16 + Math.floor(rnd(seedN + 2) * 40) : Math.floor(rnd(seedN + 3) * 14) - 10;
+      const inAt = new Date(`${date}T08:00:00+04:00`); inAt.setMinutes(inAt.getMinutes() + lateBy);
+      const field = e.department === 'Logistics' && rnd(seedN + 4) < 0.25; // drivers sometimes clock in from a delivery
+      const off = field ? 0.02 + rnd(seedN + 5) * 0.05 : (rnd(seedN + 6) - 0.5) * 0.002;
+      const lat = site.lat + off, lng = site.lng + off / 2;
+      const dist = Math.round(Math.hypot((lat - site.lat) * 111000, (lng - site.lng) * 101000));
+      const inside = dist <= 300;
+      const isToday = date === todayLocal;
+      const stay = 9 * 60 + Math.floor(rnd(seedN + 7) * 150) - 20;
+      const outAt = new Date(inAt.getTime() + stay * 60000);
+      const worked = stay - 60, ot = Math.max(0, worked - 480);
+      const late = Math.max(0, lateBy - 15);
+      const flags = [];
+      if (late) flags.push({ code: 'LATE', msg: `${late} min after the grace period` });
+      if (!inside) flags.push({ code: 'OUTSIDE_GEOFENCE', msg: `Clocked in ${(dist / 1000).toFixed(1)} km from Al Quoz Industrial Area 3 warehouse` });
+      const showOut = !isToday || rnd(seedN + 8) < 0.1;
+      if (showOut && ot) flags.push({ code: 'OVERTIME', msg: `${Math.round(ot / 6) / 10} h beyond the standard day` });
+      attRows.push({
+        employeeId: e._id, establishmentId: est._id, date, source: rnd(seedN + 9) < 0.7 ? 'mobile' : 'web',
+        clockIn: { at: inAt, lat, lng, accuracyM: 8 + Math.round(rnd(seedN + 10) * 30), distanceM: dist, insideGeofence: inside },
+        ...(showOut ? { clockOut: { at: outAt, lat: site.lat, lng: site.lng, accuracyM: 15, distanceM: 20, insideGeofence: true }, minutesWorked: worked, overtimeMinutes: ot } : {}),
+        hasPhoto: false, lateMinutes: late, status: late ? 'late' : 'present', flags,
+      });
+    });
+  }
+  await Attendance.insertMany(attRows);
 
   console.log(`Seeded ${emps.length + fzEmps.length + 1} employees across ${est.name} and ${fz.name}, periods ${prevP} (paid) and ${thisP} (inputs).`);
 });

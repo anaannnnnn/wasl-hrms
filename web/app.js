@@ -15,8 +15,10 @@ let cur = location.hash.slice(1) || 'dash';
 
 const T = {
   en: { dash: 'Command Center', emp: 'Employees', pay: 'Payroll & WPS', emi: 'Emiratisation', docs: 'Document Radar', eosb: 'Gratuity (EOSB)', leave: 'Leave', audit: 'Audit log', requests: 'Requests', setup: 'Setup', me: 'My Workspace', run: 'Run', lang: 'العربية', signout: 'Sign out',
+    ehome: 'Home', eclock: 'Attendance', eleave: 'Leave', epay: 'Payslips', edocs: 'Documents', ereq: 'Requests', eai: 'HR assistant', etag: 'My ID tag', attendance: 'Attendance',
     ph: 'Ask or instruct… e.g. Hire Omar Al-Maktoum as Senior Engineer, AED 22,000, start Nov 1' },
   ar: { dash: 'مركز القيادة', emp: 'الموظفون', pay: 'الرواتب ونظام حماية الأجور', emi: 'التوطين', docs: 'رادار الوثائق', eosb: 'مكافأة نهاية الخدمة', leave: 'الإجازات', audit: 'سجل التدقيق', requests: 'الطلبات', setup: 'الإعداد', me: 'مساحتي', run: 'تنفيذ', lang: 'English', signout: 'تسجيل الخروج',
+    ehome: 'الرئيسية', eclock: 'الحضور', eleave: 'الإجازات', epay: 'قسائم الرواتب', edocs: 'الوثائق', ereq: 'الطلبات', eai: 'مساعد الموارد البشرية', etag: 'بطاقتي', attendance: 'الحضور',
     ph: 'اطلب أو وجّه… مثال: تعيين عمر المكتوم مهندساً أول براتب 22,000 درهم' },
 };
 const t = (k) => T[L][k] || T.en[k];
@@ -89,9 +91,10 @@ function startBackground() {
 }
 
 // ---------------- Shell ----------------
-const STAFF_MODS = ['dash', 'emp', 'pay', 'emi', 'docs', 'eosb', 'leave', 'requests', 'setup', 'audit'];
+const STAFF_MODS = ['dash', 'emp', 'attendance', 'pay', 'emi', 'docs', 'eosb', 'leave', 'requests', 'setup', 'audit'];
+const EMP_MODS = ['ehome', 'eclock', 'eleave', 'epay', 'edocs', 'ereq', 'eai', 'etag'];
 const isStaffUser = () => has('hr_admin', 'payroll_maker', 'payroll_checker', 'manager');
-const mods = () => (isStaffUser() ? STAFF_MODS.filter((m) => !['audit', 'setup', 'requests'].includes(m) || has('hr_admin')) : ['me']);
+const mods = () => (isStaffUser() ? STAFF_MODS.filter((m) => !['audit', 'setup', 'requests'].includes(m) || has('hr_admin')) : EMP_MODS);
 let ESTS = []; let EST = localStorage.getItem('wasl_est') || '';
 const currentEst = () => ESTS.find((e) => e._id === EST) || ESTS.find((e) => e.jurisdiction === 'MAINLAND') || ESTS[0];
 // Open an authenticated HTML document (payslip, letter) in a new tab
@@ -126,13 +129,23 @@ const ICONS = {
   requests: 'M4 5h16v11H9l-5 4z',
   setup: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
   me: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+  ehome: 'M3 11l9-7 9 7M5 10v10h5v-6h4v6h5V10',
+  eclock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  attendance: 'M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5',
+  eleave: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4',
+  epay: 'M3 7h15a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7zM3 7l2-3h11M16 13.5h2',
+  edocs: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5zM14 3v5h5M9 13h6M9 17h4',
+  ereq: 'M4 5h16v11H9l-5 4z',
+  eai: 'M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4zM18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z',
+  etag: 'M4 6h16v12H4zM8 10h3M8 14h5M15 10h2v4h-2z',
 };
 const icon = (d, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
 let collapsed = localStorage.getItem('wasl_rail') === '1';
 function shell() {
   document.documentElement.dir = L === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = L;
   if (!mods().includes(cur)) cur = mods()[0];
-  $('#root').innerHTML = `<div class="app ${collapsed ? 'collapsed' : ''}"><nav class="rail" aria-label="Main">
+  document.body.classList.toggle('empmode', !isStaffUser());
+  $('#root').innerHTML = `<div class="app ${collapsed ? 'collapsed' : ''} ${isStaffUser() ? '' : 'emp'}"><nav class="rail" aria-label="Main">
     <div class="brand"><span class="mark">W</span><div class="fade"><b>Wasl</b><span class="by">POWERED BY <img src="devx-logo-light.png" alt="DevX Technologies"></span></div></div>
     <div class="sect fade">WORKSPACE</div>
     ${mods().map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m])}<span class="fade">${t(m)}</span></button>`).join('')}
@@ -158,7 +171,7 @@ function shell() {
     $('#col').setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
   };
   $('#lb').onclick = () => { L = L === 'en' ? 'ar' : 'en'; localStorage.setItem('wasl_lang', L); shell(); };
-  $('#cf').onsubmit = (e) => { e.preventDefault(); const q = $('#cmd').value.trim(); if (q) agent(q); };
+  $('#cf').onsubmit = (e) => { e.preventDefault(); const q = $('#cmd').value.trim(); if (!q) return; if (isStaffUser()) agent(q); else { pendingQuestion = q; go('eai'); } };
   ['Hire Omar Al-Maktoum as Senior Frontend Engineer, AED 22,000, start Nov 1', 'Ahmed Khan wants 3 days annual leave from 26 Oct', 'Salary certificate for Priya Menon addressed to Emirates NBD'].forEach((c) => {
     const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.textContent = c; b.onclick = () => { $('#cmd').value = c; agent(c); }; $('#chips').appendChild(b);
   });
@@ -806,6 +819,291 @@ async function agent(q) {
       try { const r = await api(`/agent/${p.id}/execute`, { method: 'POST' }); slot.querySelectorAll('.steps span').forEach((s) => (s.className = 'done')); toast(r.message); setTimeout(() => { slot.innerHTML = ''; views[cur]().catch(fail); }, 1200); } catch (e) { fail(e); }
     };
   } catch (e) { slot.innerHTML = ''; fail(e); }
+}
+
+// ================= Employee app (self-service): home, clock in/out, leave, payslips, documents, requests, assistant, tag =================
+const fmtTime = (d) => (d ? new Date(d).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : '—');
+const hmFromMin = (m) => (m == null ? '—' : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`);
+const distLabel = (m) => (m == null ? '' : m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
+const flagPills = (flags = []) => flags.map((f) => pill(f.code === 'LATE' || f.code === 'LOW_GPS_ACCURACY' ? 'p-warn' : f.code === 'OVERTIME' || f.code === 'HR_APPROVED' ? 'p-n' : 'p-bad', { LATE: 'Late', OUTSIDE_GEOFENCE: 'Outside site', NO_GPS: 'No GPS', LOW_GPS_ACCURACY: 'Weak GPS', OVERTIME: 'Overtime', HR_APPROVED: 'HR approved' }[f.code] || f.code)).join(' ');
+let assistantLog = [];
+let pendingQuestion = '';
+
+function getLocation() {
+  return new Promise((ok) => {
+    if (!navigator.geolocation) return ok({ gpsError: 'This browser cannot share location' });
+    navigator.geolocation.getCurrentPosition(
+      (p) => ok({ lat: p.coords.latitude, lng: p.coords.longitude, accuracyM: Math.round(p.coords.accuracy) }),
+      (e) => ok({ gpsError: e.code === 1 ? 'Location permission denied' : e.code === 3 ? 'Location timed out' : 'Location unavailable' }),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  });
+}
+// Downscale any image source to a small JPEG data URL (keeps uploads ~40–80 KB)
+function toJpeg(source, w, h) {
+  const scale = Math.min(1, 480 / Math.max(w, h));
+  const c = document.createElement('canvas'); c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+  const g = c.getContext('2d'); g.drawImage(source, 0, 0, c.width, c.height);
+  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, c.height - 22, c.width, 22);
+  g.fillStyle = '#fff'; g.font = '12px sans-serif'; g.fillText(`${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Dubai' })} GST`, 8, c.height - 7);
+  return c.toDataURL('image/jpeg', 0.72);
+}
+
+// Camera sheet: live front camera with a capture button; falls back to the phone's camera picker.
+function captureSelfie() {
+  return new Promise((resolve) => {
+    const sheet = document.createElement('div');
+    sheet.className = 'sheet';
+    sheet.innerHTML = `<div class="sheet-card panel" role="dialog" aria-modal="true" aria-label="Clock-in photo">
+      <h2 style="margin:0">Clock-in photo</h2><p style="margin:0;color:var(--muted);font-size:14px">Centre your face in the frame. The photo and your location are attached to today's clock-in.</p>
+      <div class="cam"><video id="camV" playsinline muted autoplay></video><div class="cam-ring"></div><img id="camP" alt="Captured photo" hidden></div>
+      <div id="camMsg" style="font-size:13px;color:var(--muted)">Starting camera…</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn pri" id="camShot" disabled>Take photo</button>
+        <label class="btn" for="camFile" style="display:inline-flex;align-items:center">Use phone camera</label><input id="camFile" type="file" accept="image/*" capture="user" hidden>
+        <button class="btn" id="camRetake" hidden>Retake</button>
+        <button class="btn pri" id="camUse" hidden>Use this photo</button>
+        <button class="btn" id="camCancel">Cancel</button></div></div>`;
+    document.body.appendChild(sheet);
+    translateTree(sheet, L);
+    let stream = null, shot = null;
+    const v = sheet.querySelector('#camV'), img = sheet.querySelector('#camP'), msg = sheet.querySelector('#camMsg');
+    const stop = () => stream?.getTracks().forEach((tr) => tr.stop());
+    const close = (val) => { stop(); sheet.remove(); resolve(val); };
+    const show = (dataUrl) => {
+      shot = dataUrl; img.src = dataUrl; img.hidden = false; v.hidden = true;
+      sheet.querySelector('#camShot').hidden = true; sheet.querySelector('#camRetake').hidden = false; sheet.querySelector('#camUse').hidden = false; msg.textContent = 'Looks good?';
+    };
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 } }, audio: false });
+        v.srcObject = stream; await v.play().catch(() => {});
+        sheet.querySelector('#camShot').disabled = false; msg.textContent = 'Camera ready.';
+      } catch {
+        msg.textContent = 'Camera access is blocked. Use “Use phone camera” instead, or allow camera access in your browser settings.';
+      }
+    })();
+    sheet.querySelector('#camShot').onclick = () => show(toJpeg(v, v.videoWidth || 640, v.videoHeight || 480));
+    sheet.querySelector('#camRetake').onclick = () => { img.hidden = true; v.hidden = false; shot = null; sheet.querySelector('#camShot').hidden = false; sheet.querySelector('#camRetake').hidden = true; sheet.querySelector('#camUse').hidden = true; };
+    sheet.querySelector('#camUse').onclick = () => close(shot);
+    sheet.querySelector('#camCancel').onclick = () => close(null);
+    sheet.querySelector('#camFile').onchange = (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      const im = new Image(); im.onload = () => show(toJpeg(im, im.naturalWidth, im.naturalHeight)); im.src = URL.createObjectURL(f);
+    };
+  });
+}
+
+async function doClockIn(after) {
+  const photo = await captureSelfie();
+  if (!photo) return;
+  toast('Getting your location…');
+  const gps = await getLocation();
+  try {
+    const r = await api('/me/clock-in', { method: 'POST', body: { photo, ...gps, device: navigator.userAgent.slice(0, 180) } });
+    toast(r.message + (r.record.clockIn?.insideGeofence === false ? ' · outside the site, HR will review' : '') + (gps.gpsError ? ` · ${gps.gpsError}` : ''));
+  } catch (e) { fail(e); }
+  after();
+}
+async function doClockOut(after) {
+  toast('Getting your location…');
+  const gps = await getLocation();
+  try { const r = await api('/me/clock-out', { method: 'POST', body: { ...gps, device: navigator.userAgent.slice(0, 180) } }); toast(r.message); } catch (e) { fail(e); }
+  after();
+}
+
+// Live clock-in card used on Home and Attendance
+function clockCardHtml(today, shift, site) {
+  const rec = today;
+  const state = rec?.clockOut?.at ? 'done' : rec?.clockIn?.at ? 'in' : 'out';
+  return `<div class="panel clockcard state-${state}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div><div class="lbl">${state === 'in' ? 'On shift' : state === 'done' ? 'Shift complete' : 'Not clocked in'}</div>
+        <div class="bigclock num" id="liveClock">--:--</div>
+        <div style="color:var(--muted);font-size:13px">Shift ${esc(shift?.start || '08:00')}–${esc(shift?.end || '17:00')} · ${esc(site?.label || 'Work site')}</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        ${state === 'out' ? `<button class="btn pri big-btn" id="ciBtn">${icon('M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM4 8h3l2-3h6l2 3h3v11H4z', 20)}<span>Clock in</span></button><span style="font-size:12px;color:var(--muted)">Selfie + location required</span>` : ''}
+        ${state === 'in' ? `<button class="btn pri big-btn" id="coBtn">${icon('M10 17l5-5-5-5M15 12H3M21 3v18', 20)}<span>Clock out</span></button><span style="font-size:12px;color:var(--muted)">Location captured</span>` : ''}
+        ${state === 'done' ? pill('p-ok', `${hmFromMin(rec.minutesWorked)} worked`) : ''}
+      </div></div>
+    ${rec ? `<div class="punches">
+      <div><span class="lbl">In</span><b class="num">${fmtTime(rec.clockIn?.at)}</b><small>${rec.clockIn?.insideGeofence === false ? `${distLabel(rec.clockIn.distanceM)} from site` : rec.clockIn?.insideGeofence ? 'On site' : rec.clockIn?.gpsError ? esc(rec.clockIn.gpsError) : ''}</small></div>
+      <div><span class="lbl">Out</span><b class="num">${fmtTime(rec.clockOut?.at)}</b><small>${rec.clockOut?.at ? (rec.clockOut.insideGeofence === false ? `${distLabel(rec.clockOut.distanceM)} from site` : 'Location saved') : ''}</small></div>
+      <div><span class="lbl">Worked</span><b class="num" id="liveWorked">${rec.clockOut?.at ? hmFromMin(rec.minutesWorked) : '—'}</b><small>${rec.overtimeMinutes ? `${hmFromMin(rec.overtimeMinutes)} overtime` : ''}</small></div>
+    </div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${flagPills(rec.flags)}</div>` : ''}
+  </div>`;
+}
+function wireClockCard(rec, refresh) {
+  const tick = () => {
+    const el = document.getElementById('liveClock'); if (!el) return clearInterval(window.__clk);
+    el.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Dubai' });
+    const w = document.getElementById('liveWorked');
+    if (w && rec?.clockIn?.at && !rec.clockOut?.at) w.textContent = hmFromMin(Math.max(0, Math.round((Date.now() - new Date(rec.clockIn.at)) / 60000)));
+  };
+  clearInterval(window.__clk); tick(); window.__clk = setInterval(tick, 1000);
+  const ci = $('#ciBtn'); if (ci) ci.onclick = () => doClockIn(refresh);
+  const co = $('#coBtn'); if (co) co.onclick = () => doClockOut(refresh);
+}
+
+Object.assign(views, {
+  async ehome() {
+    const h = await api('/me/home');
+    const first = h.profile.fullName.split(' ')[0];
+    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Dubai' }).toUpperCase();
+    const pays = h.payslips; const lastPay = pays.at(-1);
+    const maxPay = Math.max(1, ...pays.map((p) => p.netFils));
+    const an = h.balances.annual || {}; const annPct = an.entitlement ? Math.min(100, (an.remaining / an.entitlement) * 100) : 0;
+    V(`<div class="eyebrow">${esc(today)} · ${esc(h.profile.establishment || '')}</div>
+    <h1>Hello, <em>${esc(first)}</em></h1><p class="sub">${esc(h.profile.jobTitle || '')} · ${esc(h.profile.department || '')} · ${esc(h.profile.employeeNo)}</p>
+    <div class="grid emp-top">
+      <div id="clockSlot">${clockCardHtml(h.today, h.shift, h.site)}</div>
+      <div class="panel"><h2>Quick actions</h2><div class="qa">
+        ${[['eleave', 'Apply for leave', ICONS.leave], ['epay', 'My payslips', ICONS.pay], ['ereq', 'Salary certificate', ICONS.requests], ['edocs', 'My documents', ICONS.docs], ['etag', 'My ID tag', ICONS.etag], ['eai', 'Ask HR assistant', ICONS.eai]]
+          .map(([go2, label, ic]) => `<button class="qa-btn" data-go="${go2}">${icon(ic, 22)}<span>${label}</span></button>`).join('')}</div></div>
+    </div>
+    <div class="grid g4" style="margin-top:16px">
+      <div class="panel stat"><div class="v">${an.remaining ?? '—'}</div><span class="lbl">Annual leave left</span><div class="meter" style="margin-top:10px"><i style="width:${annPct}%"></i></div><div class="d">of ${an.entitlement ?? '—'} days</div></div>
+      <div class="panel stat"><div class="v">${h.balances.sick?.fullPayLeft ?? '—'}</div><span class="lbl">Full-pay sick days</span><div class="d">${h.balances.sick?.taken ?? 0} taken this year</div></div>
+      <div class="panel stat"><div class="v">${h.month.daysPresent}</div><span class="lbl">Days present this month</span><div class="d">${h.month.lateDays} late · ${h.month.hoursWorked} h worked</div></div>
+      <div class="panel stat"><div class="v num">${lastPay ? Math.round(lastPay.netFils / 100).toLocaleString('en-AE') : '—'}</div><span class="lbl">Last net pay · AED</span><div class="d">${lastPay ? esc(lastPay.period) : 'No payslip yet'}</div></div>
+    </div>
+    <div class="grid g3" style="margin-top:16px">
+      <div class="panel"><h2>Pay history</h2>${pays.length ? `<div class="paybars">${pays.map((p) => `<button class="paybar" data-ps="${p.runId}" title="${esc(p.period)}: AED ${AED(p.netFils)}"><span class="num">${Math.round(p.netFils / 100000 * 10) / 10}k</span><i style="height:${Math.max(6, (p.netFils / maxPay) * 100)}%"></i><small>${esc(p.period.slice(5))}</small></button>`).join('')}</div><div style="font-size:12px;color:var(--muted);margin-top:28px">Tap a bar to open that payslip.</div>` : '<div class="empty">Payslips appear here once HR releases them.</div>'}</div>
+      <div class="panel"><h2>Coming up</h2><div class="list">
+        ${h.upcomingLeave.map((l) => `<div class="row"><span class="sev" style="background:var(--accent)"></span><div class="grow">${esc(l.type)} leave<div style="font-size:12px;color:var(--muted)">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)}</div></div>${statusPill(l.status)}</div>`).join('')}
+        ${h.holidays.map((x) => `<div class="row"><span class="sev" style="background:var(--ok)"></span><div class="grow">${esc(x.name)}<div style="font-size:12px;color:var(--muted)">${esc(x.date)}${x.estimated ? ' · estimated' : ''}</div></div>${pill('p-ok', 'Public holiday')}</div>`).join('')}
+      </div></div>
+      <div class="panel"><h2>My documents</h2><div class="list">
+        ${h.documents.length ? h.documents.map((d) => `<div class="row"><div class="grow">${esc(DOC_LABEL[d.docType] || d.docType)}<div style="font-size:12px;color:var(--muted)">Expires ${fmtDate(d.expiryDate)}</div></div>${pill(d.daysLeft < 0 ? 'p-bad' : d.daysLeft <= 30 ? 'p-warn' : 'p-ok', d.daysLeft < 0 ? 'Expired' : `${d.daysLeft} days`)}</div>`).join('') : '<div class="empty">No documents on file.</div>'}
+      </div></div>
+    </div>
+    <div class="panel" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">My requests</h2><button class="btn sm" data-go="ereq">New request</button></div>
+      <div class="list" style="margin-top:6px">${h.requests.length ? h.requests.map((x) => `<div class="row"><div class="grow">${esc(KIND_LABEL[x.kind] || x.kind)}${x.letterType ? ` · ${esc(LETTER_LABEL[x.letterType] || x.letterType)}` : ''}<div style="font-size:12px;color:var(--muted)">${esc(x.reference || '')} · ${fmtDate(x.createdAt)}</div></div>${statusPill(x.status)}</div>`).join('') : '<div class="empty">No requests yet.</div>'}</div></div>`);
+    wireClockCard(h.today, () => views.ehome().catch(fail));
+    document.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => go(b.dataset.go)));
+    document.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = () => openHtml(`/me/payslips/${b.dataset.ps}`)));
+  },
+
+  async eclock() {
+    const month = localStorage.getItem('wasl_attmonth') || new Date().toISOString().slice(0, 7);
+    const [t0, hist] = await Promise.all([api('/me/attendance/today'), api(`/me/attendance?month=${month}`)]);
+    const s = hist.summary;
+    const months = Array.from({ length: 4 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - i); return d.toISOString().slice(0, 7); });
+    V(`<div class="eyebrow">ATTENDANCE · ${esc(t0.date)}${t0.ramadan ? ' · RAMADAN HOURS' : ''}</div><h1>Clock <em>in &amp; out</em></h1>
+    <p class="sub">Clocking in takes a selfie and your GPS location; clocking out records your location. If you're away from the site (a delivery, say), clock in anyway: HR reviews it.</p>
+    <div class="grid g2">
+      <div id="clockSlot">${clockCardHtml(t0.record, t0.site?.shift, t0.site)}</div>
+      <div class="panel"><h2>Where you clock in</h2>
+        <div class="sitemap" aria-hidden="true"><span class="ring r3"></span><span class="ring r2"></span><span class="ring r1"></span><span class="pin"></span>
+          ${t0.record?.clockIn?.distanceM != null ? `<span class="me" style="--d:${Math.min(1, (t0.record.clockIn.distanceM || 0) / ((t0.site?.radiusM || 300) * 3))}"></span>` : ''}</div>
+        <div style="font-size:14px;margin-top:10px"><b>${esc(t0.site?.label || t0.site?.name || 'Work site')}</b></div>
+        <div style="font-size:13px;color:var(--muted)">Allowed radius ${esc(t0.site?.radiusM || 300)} m${t0.record?.clockIn?.distanceM != null ? ` · today you were ${distLabel(t0.record.clockIn.distanceM)} away` : ''}</div>
+        ${t0.site?.lat != null ? `<a class="btn sm" style="margin-top:10px;display:inline-block;text-decoration:none" href="https://www.google.com/maps?q=${t0.site.lat},${t0.site.lng}" target="_blank" rel="noopener">Open in Maps</a>` : ''}</div>
+    </div>
+    <div class="grid g4" style="margin-top:16px">
+      <div class="panel stat"><div class="v">${s.daysPresent}</div><span class="lbl">Days present</span></div>
+      <div class="panel stat"><div class="v ${s.lateDays ? 'warn' : ''}">${s.lateDays}</div><span class="lbl">Late arrivals</span></div>
+      <div class="panel stat"><div class="v">${s.hoursWorked}</div><span class="lbl">Hours worked</span></div>
+      <div class="panel stat"><div class="v">${s.overtimeHours}</div><span class="lbl">Overtime hours</span></div>
+    </div>
+    <div class="panel tw" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">History</h2>
+      <div class="seg" role="group" aria-label="Month">${months.map((m) => `<button data-m="${m}" class="${m === month ? 'on' : ''}">${new Date(m + '-01').toLocaleDateString('en-GB', { month: 'short' })}</button>`).join('')}</div></div>
+      <table style="margin-top:8px"><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Worked</th><th>Notes</th><th></th></tr></thead><tbody>
+      ${hist.records.map((a) => `<tr><td class="mono">${esc(a.date)}</td><td class="num">${fmtTime(a.clockIn?.at)}</td><td class="num">${fmtTime(a.clockOut?.at)}</td><td class="num">${hmFromMin(a.minutesWorked)}</td><td>${flagPills(a.flags) || '<span style="color:var(--muted)">On time</span>'}</td><td>${a.hasPhoto ? `<button class="btn sm" data-ph="${a._id}">Photo</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No attendance this month.</td></tr>'}
+      </tbody></table></div><div id="phView"></div>`);
+    wireClockCard(t0.record, () => views.eclock().catch(fail));
+    document.querySelectorAll('.seg [data-m]').forEach((b) => (b.onclick = () => { localStorage.setItem('wasl_attmonth', b.dataset.m); views.eclock().catch(fail); }));
+    document.querySelectorAll('[data-ph]').forEach((b) => (b.onclick = async () => { try { const r = await api(`/me/attendance/${b.dataset.ph}/photo`); $('#phView').innerHTML = `<div class="panel" style="margin-top:16px;max-width:360px"><h2>Clock-in photo</h2><img src="${r.photo}" alt="Clock-in photo" style="width:100%;border-radius:4px"></div>`; } catch (e) { fail(e); } }));
+  },
+
+  async eleave() { localStorage.setItem('wasl_metab', 'leave'); await views.me(); empStrip('Leave', 'Apply for leave and track your requests. The policy check shows paid, half-paid and unpaid days before you submit.'); },
+  async epay() { localStorage.setItem('wasl_metab', 'payslips'); await views.me(); empStrip('Payslips', 'Open any payslip to view, print or save it as a PDF.'); },
+  async edocs() { localStorage.setItem('wasl_metab', 'docs'); await views.me(); empStrip('My documents', 'Your passport, visa, Emirates ID and other documents held by HR, with expiry dates.'); },
+  async ereq() { localStorage.setItem('wasl_metab', 'req'); await views.me(); empStrip('Requests', 'Ask for letters and certificates, update your bank or personal details, or raise a salary or IT query.'); },
+
+  async eai() {
+    V(`<div class="eyebrow">ASK IN ENGLISH, عربي, हिंदी, اردو, MALAYALAM OR TAGALOG</div><h1>HR <em>assistant</em></h1>
+    <p class="sub">Answers come from your own records (leave, payslips, documents, attendance). It never changes anything itself: it points you to the right button.</p>
+    <div class="panel chat"><div id="chatLog" class="chat-log" aria-live="polite"></div>
+      <div class="chips" id="chatChips" style="margin:10px 0"></div>
+      <form id="chatForm" class="cmd" style="margin:0"><label class="sr" for="chatIn">Message</label><input id="chatIn" autocomplete="off" placeholder="e.g. How many leave days do I have left?"><button class="btn pri sm" type="submit">Send</button></form></div>`);
+    const log = $('#chatLog');
+    const draw = () => {
+      log.innerHTML = assistantLog.length ? assistantLog.map((m) => `<div class="msg ${m.who}"><div class="bubble">${esc(m.text)}</div>${(m.actions || []).length ? `<div class="msg-actions">${m.actions.map((a) => `<button class="btn sm" data-go="${a.go}">${esc(a.label)}</button>`).join('')}</div>` : ''}</div>`).join('')
+        : '<div class="empty">Ask anything about your leave, pay, documents or attendance.</div>';
+      log.scrollTop = log.scrollHeight;
+      log.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => go(b.dataset.go)));
+    };
+    const ask = async (q) => {
+      assistantLog.push({ who: 'me', text: q }); assistantLog.push({ who: 'bot', text: '…' }); draw();
+      try { const r = await api('/me/assistant', { method: 'POST', body: { message: q } }); assistantLog[assistantLog.length - 1] = { who: 'bot', text: r.reply, actions: r.actions }; } catch (e) { assistantLog[assistantLog.length - 1] = { who: 'bot', text: e.message }; }
+      draw();
+    };
+    ['How many leave days do I have left?', 'Show my last payslip', 'I need a salary certificate for Emirates NBD', 'When does my visa expire?', 'Next public holiday?'].forEach((c) => {
+      const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.textContent = c; b.onclick = () => ask(c); $('#chatChips').appendChild(b);
+    });
+    $('#chatForm').onsubmit = (e) => { e.preventDefault(); const q = $('#chatIn').value.trim(); if (!q) return; $('#chatIn').value = ''; ask(q); };
+    draw();
+    if (pendingQuestion) { const q = pendingQuestion; pendingQuestion = ''; ask(q); }
+  },
+
+  async etag() {
+    const tg = await api('/me/tag');
+    const { default: qrcode } = await import('./vendor/qrcode.mjs');
+    const q = qrcode(0, 'M'); q.addData(tg.token); q.make();
+    V(`<div class="eyebrow">DIGITAL EMPLOYEE TAG</div><h1>My <em>ID tag</em></h1>
+    <p class="sub">Show this tag at a site kiosk or to your supervisor. The code is signed for your company, so it can't be copied to another person's record.</p>
+    <div class="idcard">
+      <div class="idcard-top"><span class="mark">W</span><div><b>${esc(tg.establishment || '')}</b><small>EMPLOYEE TAG · بطاقة الموظف</small></div></div>
+      <div class="idcard-body">
+        <div class="idcard-av">${esc(ini(tg.fullName))}</div>
+        <div style="min-width:0"><div class="idcard-name">${esc(tg.fullName)}</div>${tg.fullNameAr ? `<div dir="rtl" style="color:var(--soft)">${esc(tg.fullNameAr)}</div>` : ''}
+          <div style="color:var(--muted);font-size:14px;margin-top:4px">${esc(tg.jobTitle || '')} · ${esc(tg.department || '')}</div></div></div>
+      <div class="idcard-qr">${q.createSvgTag({ cellSize: 5, margin: 2, scalable: true, alt: 'Employee tag QR code' })}</div>
+      <div class="idcard-foot"><div><span class="lbl">Employee no.</span><b class="num">${esc(tg.employeeNo)}</b></div><div><span class="lbl">Joined</span><b class="num">${fmtDate(tg.joinDate)}</b></div><div><span class="lbl">Nationality</span><b>${esc(tg.nationality || '')}</b></div></div>
+      <div class="powered" style="padding:10px 0 0;border:0"><span>POWERED BY</span><img src="devx-logo-light.png" alt="DevX Technologies"></div>
+    </div>`);
+  },
+
+  // ---------- HR: live attendance monitor ----------
+  async attendance() {
+    const date = localStorage.getItem('wasl_attdate') || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+    const estQ = currentEst()?._id ? `&establishmentId=${currentEst()._id}` : '';
+    const d = await api(`/attendance?date=${date}${estQ}`);
+    const c = d.counts;
+    const stateP = { in: pill('p-ok', 'On shift'), out: pill('p-n', 'Clocked out'), leave: pill('p-g', 'On leave'), absent: pill('p-bad', 'Not in') };
+    V(`<div class="eyebrow">LIVE ATTENDANCE · ${esc(currentEst()?.name || '')}</div><h1>Who's <em>in</em> today</h1>
+    <p class="sub">Every clock-in carries a selfie and GPS position. Review anything outside the site or without location.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px"><label class="lbl" for="attDate">Date</label><input id="attDate" type="date" value="${esc(date)}" class="btn" style="padding:7px 10px"></div>
+    <div class="grid g4">
+      <div class="panel stat"><div class="v">${c.in + c.out}<span style="font-size:24px;color:var(--muted)"> / ${c.total}</span></div><span class="lbl">Clocked in</span><div class="meter" style="margin-top:10px"><i style="width:${c.total ? ((c.in + c.out) / c.total) * 100 : 0}%"></i></div></div>
+      <div class="panel stat"><div class="v warn">${c.late}</div><span class="lbl">Late arrivals</span></div>
+      <div class="panel stat"><div class="v ${c.outside ? 'bad' : ''}">${c.outside}</div><span class="lbl">Outside the site</span></div>
+      <div class="panel stat"><div class="v">${c.leave}</div><span class="lbl">On approved leave</span><div class="d">${c.absent} not in yet</div></div>
+    </div>
+    <div class="panel tw" style="margin-top:16px"><table><thead><tr><th>Employee</th><th>Status</th><th>In</th><th>Out</th><th>Location</th><th>Flags</th><th></th></tr></thead><tbody>
+    ${d.rows.map((x) => { const a = x.record; return `<tr><td><div style="display:flex;gap:10px;align-items:center"><span class="av">${esc(ini(x.employee.fullName))}</span><div>${esc(x.employee.fullName)}<div style="font-size:12px;color:var(--muted)">${esc(x.employee.department || '')} · ${esc(x.employee.employeeNo)}</div></div></div></td>
+      <td>${stateP[x.state]}${x.leaveType ? ` <span style="font-size:12px;color:var(--muted)">${esc(x.leaveType)}</span>` : ''}</td><td class="num">${fmtTime(a?.clockIn?.at)}</td><td class="num">${fmtTime(a?.clockOut?.at)}</td>
+      <td style="font-size:13px">${a?.clockIn?.lat != null ? `<a href="https://www.google.com/maps?q=${a.clockIn.lat},${a.clockIn.lng}" target="_blank" rel="noopener">${a.clockIn.insideGeofence ? 'On site' : distLabel(a.clockIn.distanceM) + ' away'}</a>` : a ? '<span style="color:var(--bad)">No GPS</span>' : ''}</td>
+      <td>${a ? flagPills(a.flags) : ''}</td>
+      <td style="white-space:nowrap">${a?.hasPhoto ? `<button class="btn sm" data-ph="${a._id}">Photo</button> ` : ''}${a && a.flags.some((f) => ['OUTSIDE_GEOFENCE', 'NO_GPS', 'LOW_GPS_ACCURACY'].includes(f.code)) && has('hr_admin', 'manager') ? `<button class="btn sm" data-ok="${a._id}">Approve</button>` : ''}</td></tr>`; }).join('')}
+    </tbody></table></div><div id="phView"></div>`);
+    $('#attDate').onchange = () => { localStorage.setItem('wasl_attdate', $('#attDate').value); views.attendance().catch(fail); };
+    document.querySelectorAll('[data-ph]').forEach((b) => (b.onclick = async () => { try { const r = await api(`/attendance/${b.dataset.ph}/photo`); $('#phView').innerHTML = `<div class="panel" style="margin-top:16px;max-width:360px"><h2>Clock-in photo</h2><img src="${r.photo}" alt="Clock-in photo" style="width:100%;border-radius:4px"></div>`; $('#phView').scrollIntoView({ behavior: 'smooth' }); } catch (e) { fail(e); } }));
+    document.querySelectorAll('[data-ok]').forEach((b) => (b.onclick = async () => {
+      const row = b.closest('td'); row.innerHTML = `<form style="display:flex;gap:6px"><input placeholder="Reason, e.g. delivery run" style="min-width:0;width:170px;font:inherit;padding:4px 6px;border:1px solid var(--line-2);border-radius:4px;background:var(--surface-2);color:var(--ink)" required minlength="3"><button class="btn sm pri">Save</button></form>`;
+      row.querySelector('form').onsubmit = async (e) => { e.preventDefault(); try { await api(`/attendance/${b.dataset.ok}`, { method: 'PATCH', body: { note: row.querySelector('input').value, approveException: true } }); toast('Exception approved'); views.attendance().catch(fail); } catch (err) { fail(err); } };
+    }));
+  },
+});
+
+// Employee section pages reuse the self-service tabs, without the tab strip, under their own heading.
+function empStrip(title, sub) {
+  const tabs = document.querySelector('#view .tabs'); if (tabs) tabs.remove();
+  const h1 = document.querySelector('#view h1'); if (h1) h1.innerHTML = `${esc(title.split(' ')[0])} <em>${esc(title.split(' ').slice(1).join(' ') || '')}</em>`;
+  const eb = document.querySelector('#view .eyebrow'); if (eb) eb.insertAdjacentHTML('afterend', '');
+  if (h1 && !document.querySelector('#view .sub')) h1.insertAdjacentHTML('afterend', `<p class="sub">${esc(sub)}</p>`);
+  translateTree($('#view'), L);
 }
 
 window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (token && mods().includes(m) && m !== cur) { cur = m; shell(); } });
