@@ -110,6 +110,18 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     lines: prevLines,
     totals: { grossFils: prevLines.reduce((a, l) => a + l.grossFils, 0), netFils: prevLines.reduce((a, l) => a + l.netFils, 0), heldFils: 0 },
   });
+  // Older paid runs (totals only) so the dashboard trend has 12 months of history
+  const prevNet = prevLines.reduce((a, l) => a + l.netFils, 0);
+  const prevGross = prevLines.reduce((a, l) => a + l.grossFils, 0);
+  for (let k = 2; k <= 11; k++) {
+    const f = 1 - k * 0.0085 + (k % 3 === 0 ? 0.004 : 0); // gentle growth with a little noise
+    await PayrollRun.create({
+      establishmentId: est._id, period: per(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - k, 1))),
+      status: 'paid', locked: true, rulePack: 'UAE-MAINLAND@2026.1', lines: [],
+      totals: { grossFils: Math.round(prevGross * f), netFils: Math.round(prevNet * f), heldFils: 0 },
+    });
+  }
+
   await PayrollInput.create([
     { employeeId: by('Ahmed Khan')._id, period: thisP, overtimeFils: 42000 },
     { employeeId: by('Grace Okafor')._id, period: thisP, overtimeFils: 126000 },
