@@ -65,7 +65,7 @@ export function evaluateDay({ clockInAt, clockOutAt, shift, ramadan = false, bre
 export function summarize(records) {
   const done = records.filter((r) => r.minutesWorked != null);
   return {
-    daysPresent: records.filter((r) => r.clockIn?.at).length,
+    daysPresent: new Set(records.filter((r) => r.clockIn?.at).map((r, i) => r.date ?? `#${i}`)).size, // a day with several sessions counts once
     lateDays: records.filter((r) => r.lateMinutes > 0).length,
     outsideGeofence: records.filter((r) => r.clockIn?.insideGeofence === false).length,
     hoursWorked: Math.round(done.reduce((a, r) => a + r.minutesWorked, 0) / 6) / 10,

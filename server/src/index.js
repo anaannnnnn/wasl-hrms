@@ -40,5 +40,7 @@ if (process.env.DEMO_AUTO_SEED !== 'false') {
 await runAsSystem(() => PayrollRun.updateMany({ type: { $exists: false } }, { $set: { type: 'regular', runNo: 0 } })).catch(() => {});
 await PayrollRun.syncIndexes().catch((e) => console.warn('Index sync (payroll runs):', e.message));
 await Notification.syncIndexes().catch((e) => console.warn('Index sync (notifications):', e.message));
+// Attendance allows several sessions per day: replaces the old one-record-per-day unique index.
+await Attendance.syncIndexes().catch((e) => console.warn('Index sync (attendance):', e.message));
 startScheduler();
 createApp().listen(config.port, () => console.log(`Wasl HRMS listening on http://localhost:${config.port}`));

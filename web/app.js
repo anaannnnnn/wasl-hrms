@@ -937,22 +937,23 @@ async function doClockOut(after) {
 // Live clock-in card used on Home and Attendance
 function clockCardHtml(today, shift, site) {
   const rec = today;
-  const state = rec?.clockOut?.at ? 'done' : rec?.clockIn?.at ? 'in' : 'out';
+  const state = !rec?.clockIn?.at ? 'out' : (rec.open ?? !rec.clockOut?.at) ? 'in' : 'done';
+  const sessions = rec?.sessions || (rec ? [rec] : []);
   return `<div class="panel clockcard state-${state}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-      <div><div class="lbl">${state === 'in' ? 'On shift' : state === 'done' ? 'Shift complete' : 'Not clocked in'}</div>
+      <div><div class="lbl">${state === 'in' ? (sessions.length > 1 ? `On shift · session ${sessions.length}` : 'On shift') : state === 'done' ? 'Clocked out' : 'Not clocked in'}</div>
         <div class="bigclock num" id="liveClock">--:--</div>
         <div style="color:var(--muted);font-size:13px">Shift ${esc(shift?.start || '08:00')}–${esc(shift?.end || '17:00')} · ${esc(site?.label || 'Work site')}</div></div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         ${state === 'out' ? `<button class="btn pri big-btn" id="ciBtn">${icon('M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM4 8h3l2-3h6l2 3h3v11H4z', 20)}<span>Clock in</span></button><span style="font-size:12px;color:var(--muted)">Selfie + location required</span>` : ''}
         ${state === 'in' ? `<button class="btn pri big-btn" id="coBtn">${icon('M10 17l5-5-5-5M15 12H3M21 3v18', 20)}<span>Clock out</span></button><span style="font-size:12px;color:var(--muted)">Location captured</span>` : ''}
-        ${state === 'done' ? pill('p-ok', `${hmFromMin(rec.minutesWorked)} worked`) : ''}
+        ${state === 'done' ? `<button class="btn big-btn" id="ciBtn">${icon('M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM4 8h3l2-3h6l2 3h3v11H4z', 20)}<span>Clock in again</span></button><span style="font-size:12px;color:var(--muted)">${hmFromMin(rec.minutesWorked)} worked today</span>` : ''}
       </div></div>
     ${rec ? `<div class="punches">
-      <div><span class="lbl">In</span><b class="num">${fmtTime(rec.clockIn?.at)}</b><small>${rec.clockIn?.insideGeofence === false ? `${distLabel(rec.clockIn.distanceM)} from site` : rec.clockIn?.insideGeofence ? 'On site' : rec.clockIn?.gpsError ? esc(rec.clockIn.gpsError) : ''}</small></div>
-      <div><span class="lbl">Out</span><b class="num">${fmtTime(rec.clockOut?.at)}</b><small>${rec.clockOut?.at ? (rec.clockOut.insideGeofence === false ? `${distLabel(rec.clockOut.distanceM)} from site` : 'Location saved') : ''}</small></div>
-      <div><span class="lbl">Worked</span><b class="num" id="liveWorked">${rec.clockOut?.at ? hmFromMin(rec.minutesWorked) : '—'}</b><small>${rec.overtimeMinutes ? `${hmFromMin(rec.overtimeMinutes)} overtime` : ''}</small></div>
-    </div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${flagPills(rec.flags)}</div>` : ''}
+      <div><span class="lbl">${sessions.length > 1 ? 'First in' : 'In'}</span><b class="num">${fmtTime(rec.clockIn?.at)}</b><small>${rec.clockIn?.insideGeofence === false ? `${distLabel(rec.clockIn.distanceM)} from site` : rec.clockIn?.insideGeofence ? 'On site' : rec.clockIn?.gpsError ? esc(rec.clockIn.gpsError) : ''}</small></div>
+      <div><span class="lbl">${sessions.length > 1 ? 'Last out' : 'Out'}</span><b class="num">${fmtTime(rec.clockOut?.at)}</b><small>${rec.clockOut?.at ? (rec.clockOut.insideGeofence === false ? `${distLabel(rec.clockOut.distanceM)} from site` : 'Location saved') : ''}</small></div>
+      <div><span class="lbl">Worked today</span><b class="num" id="liveWorked">${hmFromMin(rec.minutesWorked || 0)}</b><small>${rec.overtimeMinutes ? `${hmFromMin(rec.overtimeMinutes)} overtime` : ''}</small></div>
+    </div>${sessions.length > 1 ? `<div class="sessions">${sessions.map((x, i) => `<span class="pill p-n">${i + 1}. ${fmtTime(x.clockIn?.at)} – ${x.clockOut?.at ? fmtTime(x.clockOut.at) : 'now'}</span>`).join('')}</div>` : ''}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${flagPills(rec.flags)}</div>` : ''}
   </div>`;
 }
 function wireClockCard(rec, refresh) {
@@ -960,7 +961,8 @@ function wireClockCard(rec, refresh) {
     const el = document.getElementById('liveClock'); if (!el) return clearInterval(window.__clk);
     el.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Dubai' });
     const w = document.getElementById('liveWorked');
-    if (w && rec?.clockIn?.at && !rec.clockOut?.at) w.textContent = hmFromMin(Math.max(0, Math.round((Date.now() - new Date(rec.clockIn.at)) / 60000)));
+    const curS = rec?.current || rec;
+    if (w && curS?.clockIn?.at && !curS.clockOut?.at) w.textContent = hmFromMin((rec.minutesWorked || 0) + Math.max(0, Math.round((Date.now() - new Date(curS.clockIn.at)) / 60000)));
   };
   clearInterval(window.__clk); tick(); window.__clk = setInterval(tick, 1000);
   const ci = $('#ciBtn'); if (ci) ci.onclick = () => doClockIn(refresh);

@@ -273,6 +273,7 @@ const attSchema = new Schema({
   employeeId: { type: Id, ref: 'Employee', required: true },
   establishmentId: { type: Id, ref: 'Establishment' },
   date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ }, // local work date (Asia/Dubai)
+  seq: { type: Number, default: 0 }, // session number within the day (clock in again after a break / site visit)
   clockIn: punch,
   clockOut: punch,
   photo: { type: String, select: false }, // small JPEG data URL captured at clock-in
@@ -286,6 +287,6 @@ const attSchema = new Schema({
   source: { type: String, enum: ['web', 'mobile', 'kiosk', 'hr'], default: 'web' },
 }, { timestamps: true });
 attSchema.plugin(tenantPlugin);
-attSchema.index({ tenantId: 1, employeeId: 1, date: 1 }, { unique: true });
+attSchema.index({ tenantId: 1, employeeId: 1, date: 1, seq: 1 }, { unique: true });
 attSchema.index({ tenantId: 1, date: 1 });
 export const Attendance = model('Attendance', attSchema);
