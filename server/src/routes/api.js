@@ -15,6 +15,8 @@ import { toFils } from '../lib/money.js';
 import { propose, execute } from '../lib/agent.js';
 import { evaluateRequest, leaveDeductionDays } from '../lib/leave.js';
 import { Tenant } from '../models/index.js';
+import { verifyTotp } from '../lib/totp.js';
+import { decryptField } from '../lib/fieldcrypt.js';
 
 const r = Router();
 const DAY = 86400000;
@@ -22,10 +24,33 @@ const daysUntil = (d) => Math.ceil((new Date(d) - Date.now()) / DAY);
 
 // ---------------- Auth ----------------
 r.post('/auth/login', ah(async (req, res) => {
-  const { email, password } = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(req.body);
-    const user = await runAsSystem(() => User.findOne({ email: email.toLowerCase(), active: true }).select('+passwordHash').exec());
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect.' });
-  res.json({ token: signToken(user), user: { name: user.name, email: user.email, roles: user.roles, employeeId: user.employeeId } });
+  const { email, password, code } = z.object({ email: z.string().email(), password: z.string().min(1), code: z.string().optional() }).parse(req.body);
+  const user = await runAsSystem(() => User.findOne({ email: email.toLowerCase(), active: true }).select('+passwordHash +mfaSecret').exec());
+  const generic = () => res.status(401).json({ error: 'Email or password is incorrect.' });
+  if (!user) { await bcrypt.compare(password, '$2a$10$abcdefghijklmnopqrstuuJ6dU3m3qQ7B6m0Yy6s8rC7mJ9W3pQyO'); return generic(); } // equalise timing
+  if (user.lockedUntil && user.lockedUntil > new Date()) return res.status(423).json({ error: `Too many failed attempts. Try again after ${user.lockedUntil.toISOString().slice(11, 16)} UTC, or ask HR to unlock your account.` });
+  const save = () => runAsSystem(() => user.save());
+  if (!(await bcrypt.compare(password, user.passwordHash))) {
+    user.failedLogins = (user.failedLogins || 0) + 1;
+    if (user.failedLogins >= 5) { user.lockedUntil = new Date(Date.now() + 15 * 60000); user.failedLogins = 0; }
+    await save();
+    return generic();
+  }
+  if (user.mfaEnabled) {
+    if (!code) return res.status(401).json({ mfaRequired: true, error: 'Enter the 6-digit code from your authenticator app.' });
+    if (!verifyTotp(decryptField(user.mfaSecret), code)) {
+      user.failedLogins = (user.failedLogins || 0) + 1;
+      if (user.failedLogins >= 5) { user.lockedUntil = new Date(Date.now() + 15 * 60000); user.failedLogins = 0; }
+      await save();
+      return res.status(401).json({ mfaRequired: true, error: 'That code is not valid. Codes change every 30 seconds.' });
+    }
+  }
+  user.failedLogins = 0; user.lockedUntil = undefined; user.lastLoginAt = new Date();
+  await save();
+  const tenant = await runAsSystem(() => Tenant.findById(user.tenantId).lean());
+  const staff = user.roles.some((x) => x !== 'employee');
+  const mustEnrollMfa = !!tenant?.settings?.requireMfaForStaff && staff && !user.mfaEnabled;
+  res.json({ token: signToken(user), user: { name: user.name, email: user.email, roles: user.roles, employeeId: user.employeeId, mfaEnabled: user.mfaEnabled, mustEnrollMfa } });
 }));
 
 r.use(authenticate);
@@ -73,7 +98,7 @@ r.patch('/employees/:id/bank', requireRole('hr_admin'), ah(async (req, res) => {
   if (!isValidUaeIban(iban)) return res.status(400).json({ error: 'IBAN fails the UAE checksum.' });
   const emp = await Employee.findById(req.params.id).select('+bank.iban +bank.routingCode');
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
-  const before = maskIban(emp.bank.iban);
+  const before = maskIban(decryptField(emp.bank.iban));
   emp.bank.iban = iban; if (routingCode) emp.bank.routingCode = routingCode;
   await emp.save();
   await audit(req, 'employee.bank.update', 'Employee', emp._id, { iban: before }, { iban: maskIban(iban) });

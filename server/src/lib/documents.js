@@ -29,9 +29,9 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
 .stamp{width:120px;height:120px;border:3px double #ff6a2b;border-radius:50%;display:grid;place-items:center;text-align:center;color:#ff6a2b;font-size:10px;font-weight:600;transform:rotate(-8deg);padding:10px}
 .foot{margin-top:24px;font-size:10.5px;color:#5b6b66;border-top:1px solid #e3eaec;padding-top:10px}
 .bar{max-width:820px;margin:16px auto 0;display:flex;justify-content:flex-end}
-.bar button{font:inherit;font-weight:600;background:#ff6a2b;color:#0b2530;border:0;padding:9px 16px;cursor:pointer}
+.bar{font-size:12px;color:#5b6b66}
 @media print{body{background:#fff}.page{margin:0;max-width:none;padding:0;border-top:0}.bar{display:none}}
-</style></head><body><div class="bar"><button onclick="window.print()">Print / Save as PDF</button></div><div class="page">${body}</div></body></html>`;
+</style></head><body><div class="bar">Press Ctrl+P (⌘P on Mac) to print or save as PDF</div><div class="page">${body}</div></body></html>`;
 
 const orgHead = (est, refLabel) => `<div class="head"><div class="org"><b>${esc(est.name)}</b><small>${esc(est.emirate || '')}${est.freeZone ? ` · ${esc(est.freeZone)}` : ' · Mainland'} · MOHRE ${esc(est.mohreId || '—')}</small></div>
 <div class="org ar"><b>${esc(est.nameAr || est.name)}</b><small>${esc(refLabel || '')}</small></div></div>`;

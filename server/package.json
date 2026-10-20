@@ -10,7 +10,8 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "seed": "node src/seed.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:integration": "node --test --test-concurrency=1 test/integration/*.int.test.js"
   },
   "dependencies": {
     "bcryptjs": "2.4.3",

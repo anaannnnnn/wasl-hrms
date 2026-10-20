@@ -1,7 +1,8 @@
 // Daily compliance jobs, run in-process for every tenant (no Redis needed for a single instance).
 // Idempotent: every alert has a dedupe key, so re-running the job or restarting the server never double-notifies.
 // For multiple app instances, set JOBS_ENABLED=false on all but one (or move these to BullMQ workers).
-import { Tenant, Establishment, Employee, ComplianceDocument } from '../models/index.js';
+import { Tenant, Establishment, Employee, ComplianceDocument, Notification, AgentRun, WpsSifBatch } from '../models/index.js';
+import { retentionCutoffs, anonymisedFields, shouldAnonymise } from '../lib/retention.js';
 import { runAsSystem, runWithTenant } from '../lib/tenantContext.js';
 import { assessEmiratisation } from '../lib/emiratisation.js';
 import { notify } from '../lib/notify.js';
@@ -43,10 +44,27 @@ export async function runEmiratisationAlerts(tenantId, now = new Date()) {
   });
 }
 
+// PDPL retention: purge expired operational data and anonymise long-exited employees (unless on legal hold).
+export async function runRetention(tenant, now = new Date()) {
+  const c = retentionCutoffs(tenant.settings?.retention, now);
+  return runWithTenant({ tenantId: String(tenant._id) }, async () => {
+    const n = await Notification.deleteMany({ createdAt: { $lt: c.notificationsBefore } });
+    const a = await AgentRun.deleteMany({ createdAt: { $lt: c.agentRunsBefore } });
+    const s = await WpsSifBatch.deleteMany({ createdAt: { $lt: c.sifBefore } });
+    let anon = 0;
+    for (const e of await Employee.find({ status: 'exited', anonymisedAt: { $exists: false } }).lean()) {
+      if (!shouldAnonymise(e, c.exitedBefore)) continue;
+      await Employee.updateOne({ _id: e._id }, { $set: anonymisedFields(e) });
+      anon++;
+    }
+    return { notifications: n.deletedCount, agentRuns: a.deletedCount, sifFiles: s.deletedCount, anonymised: anon };
+  });
+}
+
 export async function runDailyJobs(now = new Date()) {
   const tenants = await runAsSystem(() => Tenant.find().lean());
   for (const t of tenants) {
-    try { await runExpiryAlerts(t._id, now); await runEmiratisationAlerts(t._id, now); } catch (e) { console.error(`[jobs] tenant ${t._id}:`, e.message); }
+    try { await runExpiryAlerts(t._id, now); await runEmiratisationAlerts(t._id, now); await runRetention(t, now); } catch (e) { console.error(`[jobs] tenant ${t._id}:`, e.message); }
   }
 }
 

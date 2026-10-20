@@ -299,8 +299,16 @@ r.patch('/setup/checklist', requireRole('hr_admin'), ah(async (req, res) => {
 r.get('/rules', ah(async (req, res) => res.json(listRulePacks())));
 r.get('/settings', requireRole('hr_admin'), ah(async (req, res) => res.json((await runAsSystem(() => Tenant.findById(req.user.tenantId).lean()))?.settings || {})));
 r.patch('/settings', requireRole('hr_admin'), ah(async (req, res) => {
-  const b = z.object({ gratuityCapBasis: z.enum(['total', 'basic']).optional(), payrollCutoffDay: z.number().int().min(1).max(28).optional() }).parse(req.body);
-  const set = Object.fromEntries(Object.entries(b).map(([k, v]) => [`settings.${k}`, v]));
+  const b = z.object({
+    gratuityCapBasis: z.enum(['total', 'basic']).optional(), payrollCutoffDay: z.number().int().min(1).max(28).optional(),
+    requireMfaForStaff: z.boolean().optional(),
+    retention: z.object({ notificationsDays: z.number().int().min(30).max(3650), agentRunsDays: z.number().int().min(30).max(3650), exitedEmployeeYears: z.number().int().min(1).max(15), sifFilesYears: z.number().int().min(1).max(15) }).partial().optional(),
+  }).parse(req.body);
+  const set = {};
+  for (const [k, v] of Object.entries(b)) {
+    if (k === 'retention') for (const [rk, rv] of Object.entries(v)) set[`settings.retention.${rk}`] = rv;
+    else set[`settings.${k}`] = v;
+  }
   await runAsSystem(() => Tenant.updateOne({ _id: req.user.tenantId }, set));
   await audit(req, 'settings.update', 'Tenant', req.user.tenantId, null, b);
   res.json({ ok: true });

@@ -8,19 +8,44 @@ import { ZodError } from 'zod';
 import { config } from './config.js';
 import api from './routes/api.js';
 import mvp from './routes/mvp.js';
+import security from './routes/security.js';
+import attendance from './routes/attendance.js';
 
 export function createApp() {
   const app = express();
   app.set('trust proxy', 1);
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'], // inline style attributes are used for layout
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'"],
+        frameSrc: ["'self'", 'blob:'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }));
   app.use(cors({ origin: config.corsOrigin }));
   // Larger bodies only where files are uploaded (base64) or CSVs imported
   app.use(['/api/documents', '/api/import'], express.json({ limit: '12mb' }));
+  app.use('/api/me/clock-in', express.json({ limit: '2mb' }));
   app.use(express.json({ limit: '1mb' }));
-  app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 50 }));
+  app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many sign-in attempts. Wait 15 minutes and try again.' } }));
+  app.use('/api/agent', rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many AI requests. Wait a minute.' } }));
+  app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 1500, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests. Slow down and try again shortly.' } }));
   app.get('/healthz', (req, res) => res.json({ ok: true }));
   app.use('/api', api);
   app.use('/api', mvp);
+  app.use('/api', security);
+  app.use('/api', attendance);
 
   if (config.serveWeb) {
     const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web');
