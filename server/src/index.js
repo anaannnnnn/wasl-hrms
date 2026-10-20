@@ -3,7 +3,7 @@ import { config } from './config.js';
 import { createApp } from './app.js';
 
 import { startScheduler } from './jobs/scheduler.js';
-import { PayrollRun, Notification, Tenant, User, Attendance } from './models/index.js';
+import { PayrollRun, Notification, Tenant, User, Attendance, Applicant } from './models/index.js';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { runAsSystem } from './lib/tenantContext.js';
@@ -23,7 +23,8 @@ if (process.env.DEMO_AUTO_SEED !== 'false') {
       if (!demo || tenants > 1) return null;
       const hasEmployeeLogin = await User.exists({ email: 'ahmed@alnoor.demo' });
       const hasAttendance = await Attendance.exists({});
-      return !hasEmployeeLogin || !hasAttendance ? 'demo data is out of date' : null;
+      const hasApplicants = await Applicant.exists({});
+      return !hasEmployeeLogin || !hasAttendance || !hasApplicants ? 'demo data is out of date' : null;
     });
     if (needsSeed) {
       console.log(`Demo data: ${needsSeed}, reloading demo data…`);

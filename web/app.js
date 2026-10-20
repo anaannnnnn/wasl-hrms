@@ -15,10 +15,10 @@ let cur = location.hash.slice(1) || 'dash';
 
 const T = {
   en: { dash: 'Command Center', emp: 'Employees', pay: 'Payroll & WPS', emi: 'Emiratisation', docs: 'Document Radar', eosb: 'Gratuity (EOSB)', leave: 'Leave', audit: 'Audit log', requests: 'Requests', setup: 'Setup', me: 'My Workspace', run: 'Run', lang: 'العربية', signout: 'Sign out',
-    ehome: 'Home', eclock: 'Attendance', eleave: 'Leave', epay: 'Payslips', edocs: 'Documents', ereq: 'Requests', eai: 'HR assistant', etag: 'My ID tag', attendance: 'Attendance',
+    ehome: 'Home', eclock: 'Attendance', eleave: 'Leave', epay: 'Payslips', edocs: 'Documents', ereq: 'Requests', eai: 'HR assistant', etag: 'My ID tag', attendance: 'Attendance', away: "Who's away", eaway: "Who's away", ats: 'Applicant tracker', reflect: 'Wellness', ereflect: 'Check-in',
     ph: 'Ask or instruct… e.g. Hire Omar Al-Maktoum as Senior Engineer, AED 22,000, start Nov 1' },
   ar: { dash: 'مركز القيادة', emp: 'الموظفون', pay: 'الرواتب ونظام حماية الأجور', emi: 'التوطين', docs: 'رادار الوثائق', eosb: 'مكافأة نهاية الخدمة', leave: 'الإجازات', audit: 'سجل التدقيق', requests: 'الطلبات', setup: 'الإعداد', me: 'مساحتي', run: 'تنفيذ', lang: 'English', signout: 'تسجيل الخروج',
-    ehome: 'الرئيسية', eclock: 'الحضور', eleave: 'الإجازات', epay: 'قسائم الرواتب', edocs: 'الوثائق', ereq: 'الطلبات', eai: 'مساعد الموارد البشرية', etag: 'بطاقتي', attendance: 'الحضور',
+    ehome: 'الرئيسية', eclock: 'الحضور', eleave: 'الإجازات', epay: 'قسائم الرواتب', edocs: 'الوثائق', ereq: 'الطلبات', eai: 'مساعد الموارد البشرية', etag: 'بطاقتي', attendance: 'الحضور', away: 'من في إجازة', eaway: 'من في إجازة', ats: 'متابعة المتقدمين', reflect: 'الرفاهية', ereflect: 'تسجيل الحالة',
     ph: 'اطلب أو وجّه… مثال: تعيين عمر المكتوم مهندساً أول براتب 22,000 درهم' },
 };
 const t = (k) => T[L][k] || T.en[k];
@@ -40,23 +40,31 @@ const has = (...r) => me?.roles?.some((x) => r.includes(x) || x === 'owner');
 const EMP_ENTRY = /^\/employee\/?$/.test(location.pathname);
 function loginView() {
   const empMode = EMP_ENTRY;
-  $('#root').innerHTML = `<div class="login"><form class="panel" id="lf">
-    <div class="brand" style="padding:0"><span class="mark">W</span><div><b>Wasl</b><small>${empMode ? 'EMPLOYEE APP' : 'HRMS · UAE'}</small></div></div>
-    ${empMode
-      ? `<h1 style="font-size:38px;margin:4px 0 0">Your <em>workday</em>, in your pocket</h1>
-         <p class="sub" style="margin:0">Clock in, apply for leave, get payslips and letters.</p>`
-      : `<h1 style="font-size:38px;margin:4px 0 0">Run <em>payroll</em> with confidence</h1>
-         <p class="sub" style="margin:0">UAE HR, payroll and compliance</p>`}
-    <div class="field"><label class="lbl" for="em">${empMode ? 'Work email' : 'Email'}</label><input id="em" type="email" autocomplete="username" value="${empMode ? 'ahmed@alnoor.demo' : 'admin@alnoor.demo'}" required></div>
-    <div class="field"><label class="lbl" for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" value="Demo@2026" required></div>
-    <div class="err" id="le"></div>
-    <button class="btn pri" type="submit">Sign in</button>
-    <p class="note">${empMode
-      ? 'Demo employees: ahmed@alnoor.demo (delivery driver), grace@alnoor.demo (sales). Password Demo@2026.'
-      : 'Demo accounts: admin@alnoor.demo (HR + payroll maker), checker@alnoor.demo (payroll checker). Password Demo@2026.'}</p>
-    <a href="${empMode ? '/' : '/employee'}" style="font-size:13px">${empMode ? 'HR or manager? Sign in here' : 'Employee? Use the employee app'}</a>
-    <div class="powered" style="padding:12px 0 0"><span>POWERED BY</span><img src="devx-logo-dark.png" alt="DevX Technologies"></div>
-  </form></div>`;
+  const perks = empMode
+    ? ['Clock in with a selfie and GPS', 'Apply for leave in seconds', 'Payslips and letters on your phone', 'Ask the HR assistant in your language']
+    : ['WPS-ready payroll with 25 pre-flight checks', 'Emiratisation shield and NAFIS planner', 'Selfie + GPS attendance', 'Arabic and English, mobile ready'];
+  $('#root').innerHTML = `<div class="login split">
+    <aside class="login-side" aria-hidden="false">
+      <div class="brand" style="color:#fff"><span class="mark">W</span><div><b>Wasl</b><small style="color:#bdbbb5">${empMode ? 'Employee app' : 'HRMS for the UAE'}</small></div></div>
+      <div class="ls-mid"><h2 class="ls-title">${empMode ? 'Your workday, in your pocket.' : 'HR, payroll and compliance in one place.'}</h2>
+        <ul class="ls-list">${perks.map((p) => `<li><span>${icon('M5 12l4 4 10-10', 14)}</span>${esc(p)}</li>`).join('')}</ul></div>
+      <div class="powered" style="border-color:rgba(255,255,255,.12)"><span style="color:#bdbbb5">POWERED BY</span><img src="devx-logo-light.png" alt="DevX Technologies"></div>
+    </aside>
+    <form class="login-form" id="lf">
+      <div class="lf-top"><a href="${empMode ? '/' : '/employee'}" style="font-size:13.5px">${empMode ? 'HR or manager? Sign in here' : 'Employee? Use the employee app'}</a></div>
+      <div class="lf-box">
+        <h1 style="font-size:34px;margin:0">${empMode ? 'Employee sign in' : 'Sign in'}</h1>
+        <p class="sub" style="margin:0 0 8px">${empMode ? 'Use the work email HR gave you.' : 'Welcome back. Sign in to your workspace.'}</p>
+        <div class="field"><label class="lbl" for="em">${empMode ? 'Work email' : 'Email'}</label><input id="em" type="email" autocomplete="username" value="${empMode ? 'ahmed@alnoor.demo' : 'admin@alnoor.demo'}" required></div>
+        <div class="field"><label class="lbl" for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" value="Demo@2026" required></div>
+        <div class="err" id="le"></div>
+        <button class="btn pri" type="submit">Sign in</button>
+        <p class="note" style="margin:0">${empMode
+          ? 'Demo employees: ahmed@alnoor.demo (delivery driver), grace@alnoor.demo (sales). Password Demo@2026.'
+          : 'Demo accounts: admin@alnoor.demo (HR + payroll maker), checker@alnoor.demo (payroll checker). Password Demo@2026.'}</p>
+      </div>
+    </form>
+  </div>`;
   translateTree($('#root'), L);
   $('#lf').onsubmit = async (e) => {
     e.preventDefault();
@@ -100,10 +108,10 @@ function startBackground() {
 }
 
 // ---------------- Shell ----------------
-const STAFF_MODS = ['dash', 'emp', 'attendance', 'pay', 'emi', 'docs', 'eosb', 'leave', 'requests', 'setup', 'audit'];
-const EMP_MODS = ['ehome', 'eclock', 'eleave', 'epay', 'edocs', 'ereq', 'eai', 'etag'];
+const STAFF_MODS = ['dash', 'emp', 'attendance', 'away', 'ats', 'pay', 'emi', 'docs', 'eosb', 'leave', 'reflect', 'requests', 'setup', 'audit'];
+const EMP_MODS = ['ehome', 'eclock', 'eleave', 'eaway', 'epay', 'edocs', 'ereq', 'ereflect', 'eai', 'etag'];
 const isStaffUser = () => has('hr_admin', 'payroll_maker', 'payroll_checker', 'manager');
-const mods = () => (isStaffUser() ? STAFF_MODS.filter((m) => !['audit', 'setup', 'requests'].includes(m) || has('hr_admin')) : EMP_MODS);
+const mods = () => (isStaffUser() ? STAFF_MODS.filter((m) => !['audit', 'setup', 'requests', 'reflect'].includes(m) || has('hr_admin')) : EMP_MODS);
 let ESTS = []; let EST = localStorage.getItem('wasl_est') || '';
 const currentEst = () => ESTS.find((e) => e._id === EST) || ESTS.find((e) => e.jurisdiction === 'MAINLAND') || ESTS[0];
 // Open an authenticated HTML document (payslip, letter) in a new tab
@@ -147,6 +155,11 @@ const ICONS = {
   ereq: 'M4 5h16v11H9l-5 4z',
   eai: 'M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4zM18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z',
   etag: 'M4 6h16v12H4zM8 10h3M8 14h5M15 10h2v4h-2z',
+  away: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4M8 14h3M13 17h3',
+  eaway: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4M8 14h3M13 17h3',
+  ats: 'M3 17l5-5 4 4 8-8M15 8h5v5',
+  reflect: 'M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z',
+  ereflect: 'M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z',
 };
 const icon = (d, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
 let collapsed = localStorage.getItem('wasl_rail') === '1';
@@ -1211,20 +1224,25 @@ async function employeeDirectory() {
     <label class="sr" for="empStatus">Status</label><select id="empStatus" class="btn"><option value="">Any status</option>${['active', 'onboarding', 'notice', 'exited'].map((s) => `<option value="${s}" ${saved.status === s ? 'selected' : ''}>${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}</select>
     <span id="empCount" class="lbl" style="margin-inline-start:auto"></span>
   </div>
-  <div class="panel tw" style="padding-top:8px"><table class="clickable"><thead><tr><th>Employee</th><th>Role</th><th>Team</th><th>Nationality</th><th>Joined</th><th>Status</th><th>IBAN</th><th class="r">Basic (AED)</th></tr></thead><tbody id="empRows"></tbody></table></div>`);
+  <div class="panel tw" style="padding-top:8px"><table class="clickable"><thead><tr><th>Employee</th><th>Role</th><th>Team</th><th>Nationality</th><th>Joined</th><th>Status</th><th>IBAN</th><th class="r">Basic (AED)</th></tr></thead><tbody id="empRows"></tbody></table><div class="pager" id="empPager"></div></div>`);
   const draw = () => {
     const q = $('#empQ').value.trim().toLowerCase(), dept = $('#empDept').value, st = $('#empStatus').value;
     try { localStorage.setItem('wasl_empfilter', JSON.stringify({ q, dept, status: st })); } catch {}
     const rows = list.filter((e) => (!dept || e.department === dept) && (!st || e.status === st) && (!q || [e.fullName, e.fullNameAr, e.employeeNo, e.jobTitle, e.department, e.nationality, e.email].some((x) => String(x || '').toLowerCase().includes(q))));
     $('#empCount').textContent = `${rows.length} of ${list.length}`;
-    $('#empRows').innerHTML = rows.map((e) => `<tr data-open="${e._id}" tabindex="0"><td><div style="display:flex;gap:10px;align-items:center"><span class="av">${esc(ini(e.fullName))}</span><div><b style="font-weight:500">${esc(L === 'ar' && e.fullNameAr ? e.fullNameAr : e.fullName)}</b><div class="mono" style="font-size:11px;color:var(--muted)">${esc(e.employeeNo)}</div></div></div></td>
-      <td>${esc(e.jobTitle || '')}</td><td>${esc(e.department || '')}</td><td>${e.isUaeNational ? pill('p-g', 'UAE National') : esc(e.nationality || '')}</td><td class="mono">${fmtDate(e.joinDate)}</td>
+    const per = 12, pages = Math.max(1, Math.ceil(rows.length / per)); dirPage = Math.min(dirPage, pages);
+    const pageRows = rows.slice((dirPage - 1) * per, dirPage * per);
+    $('#empPager').innerHTML = pages > 1 ? `${dirPage > 1 ? `<button class="pg" data-dp="${dirPage - 1}" aria-label="Previous page">${icon('M15 6l-6 6 6 6', 16)}</button>` : ''}${Array.from({ length: pages }, (_, i) => `<button class="pg ${i + 1 === dirPage ? 'on' : ''}" data-dp="${i + 1}">${i + 1}</button>`).join('')}${dirPage < pages ? `<button class="pg" data-dp="${dirPage + 1}" aria-label="Next page">${icon('M9 6l6 6-6 6', 16)}</button>` : ''}` : '';
+    $('#empPager').querySelectorAll('[data-dp]').forEach((b) => (b.onclick = () => { dirPage = Number(b.dataset.dp); draw(); }));
+    $('#empRows').innerHTML = pageRows.map((e) => `<tr data-open="${e._id}" tabindex="0"><td><div style="display:flex;gap:10px;align-items:center"><span class="av">${esc(ini(e.fullName))}</span><div><b style="font-weight:500">${esc(L === 'ar' && e.fullNameAr ? e.fullNameAr : e.fullName)}</b><div class="mono" style="font-size:11px;color:var(--muted)">${esc(e.employeeNo)}</div></div></div></td>
+      <td>${esc(e.jobTitle || '')}</td><td>${deptTag(e.department)}</td><td>${e.isUaeNational ? pill('p-g', 'UAE National') : esc(e.nationality || '')}</td><td class="mono">${fmtDate(e.joinDate)}</td>
       <td>${pill(e.status === 'active' ? 'p-ok' : e.status === 'exited' ? 'p-bad' : 'p-warn', e.status)}</td>
       <td>${e.ibanValid ? `<span class="mono">${esc(e.bank?.ibanMasked || '')}</span>` : pill('p-bad', 'Invalid')}</td><td class="r num">${AED(e.compensation?.basicFils || 0)}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">No one matches. Try a different search.</td></tr>';
     translateTree($('#empRows'), L);
     document.querySelectorAll('[data-open]').forEach((tr) => { tr.onclick = () => openEmployee(tr.dataset.open); tr.onkeydown = (ev) => { if (ev.key === 'Enter') openEmployee(tr.dataset.open); }; });
   };
-  ['#empQ', '#empDept', '#empStatus'].forEach((s) => $(s).addEventListener('input', draw));
+  let dirPage = 1;
+  ['#empQ', '#empDept', '#empStatus'].forEach((s) => $(s).addEventListener('input', () => { dirPage = 1; draw(); }));
   draw();
   if (!window.__slashBound) { window.__slashBound = true; document.addEventListener('keydown', (ev) => { if (ev.key === '/' && cur === 'emp' && !/input|textarea|select/i.test(document.activeElement?.tagName)) { const i = $('#empQ'); if (i) { ev.preventDefault(); i.focus(); } } }); }
 }
@@ -1444,6 +1462,223 @@ function addLeave(id, e, done) {
 }
 
 views.emp = async () => (EMP_OPEN ? employeeProfile(EMP_OPEN) : employeeDirectory());
+
+// ================= Workspace features: who's away, applicant tracker, wellness, tasks/calendar/hours =================
+const TAGS = ['t1', 't2', 't3', 't4', 't5', 't6'];
+const deptTag = (name) => { if (!name) return ''; let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return `<span class="tag ${TAGS[h % TAGS.length]}">${esc(name)}</span>`; };
+const monthLabel = (m) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const shiftMonth = (m, n) => { const d = new Date(`${m}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 7); };
+const ls = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const dueLabel = (d) => { if (!d) return ''; const t = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }), x = new Date(d).toISOString().slice(0, 10); const diff = Math.round((Date.parse(x) - Date.parse(t)) / 864e5); return diff < 0 ? `<span class="due bad">Overdue</span>` : diff === 0 ? `<span class="due bad">Due today</span>` : diff === 1 ? `<span class="due warn">Tomorrow</span>` : `<span class="due">${fmtDate(d)}</span>`; };
+
+// ---- Timeline grid shared by HR and employees ----
+function awayGrid(d, { page = 1, perPage = 12, onPage, onBar, mine } = {}) {
+  const days = []; for (let x = d.first; x <= d.last; x = new Date(Date.parse(x) + 864e5).toISOString().slice(0, 10)) days.push(x);
+  const holi = Object.fromEntries(d.holidays.map((h) => [h.date, h.name]));
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+  const rows = d.rows.filter((r) => r.leaves.length || mine === String(r.employee._id));
+  const pages = Math.max(1, Math.ceil(rows.length / perPage)); const pg = Math.min(page, pages);
+  const shown = rows.slice((pg - 1) * perPage, pg * perPage);
+  const col = (date) => days.indexOf(date) + 2;
+  const html = `<div class="tl-wrap"><div class="tl" style="--days:${days.length}">
+    <div class="tl-h tl-name">${esc(monthLabel(d.month).split(' ')[0])}</div>
+    ${days.map((x) => { const wd = new Date(`${x}T00:00:00Z`).getUTCDay(); return `<div class="tl-h ${wd === 0 || wd === 6 ? 'we' : ''} ${x === todayStr ? 'today' : ''} ${holi[x] ? 'ho' : ''}" title="${esc(holi[x] || '')}"><small>${new Date(`${x}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'narrow', timeZone: 'UTC' })}</small><b>${Number(x.slice(8))}</b></div>`; }).join('')}
+    ${shown.map((r, ri) => `<div class="tl-name tl-row" style="grid-row:${ri + 2}"><span class="av">${esc(ini(r.employee.fullName))}</span><div style="min-width:0"><b>${esc(r.employee.fullName)}</b><small>${esc(r.employee.jobTitle || '')}</small></div></div>
+      ${days.map((x, di) => { const wd = new Date(`${x}T00:00:00Z`).getUTCDay(); return `<div class="tl-c ${wd === 0 || wd === 6 ? 'we' : ''} ${holi[x] ? 'ho' : ''}" style="grid-row:${ri + 2};grid-column:${di + 2}"></div>`; }).join('')}
+      ${d.holidays.map((h) => `<div class="tl-bar holiday" style="grid-row:${ri + 2};grid-column:${col(h.date)} / span 1" title="${esc(h.name)}"></div>`).join('')}
+      ${r.leaves.map((l, li) => { const s = l.start < d.first ? d.first : l.start, e = l.end > d.last ? d.last : l.end; const span = days.indexOf(e) - days.indexOf(s) + 1; return `<button class="tl-bar ${esc(l.type)} ${l.status === 'pending' ? 'pending' : ''}" style="grid-row:${ri + 2};grid-column:${col(s)} / span ${span};--i:${ri}" data-r="${ri}" data-l="${li}" title="${esc(`${r.employee.fullName}: ${l.type} ${l.start} → ${l.end}${l.status === 'pending' ? ' (pending)' : ''}`)}">${span > 1 ? esc(l.type === 'away' ? 'Away' : l.type[0].toUpperCase() + l.type.slice(1)) : ''}</button>`; }).join('')}`).join('')}
+    ${shown.length ? '' : `<div class="empty" style="grid-column:1 / -1">Nobody is away in ${esc(monthLabel(d.month))}.</div>`}
+  </div></div>
+  ${pages > 1 ? `<div class="pager">${pg > 1 ? `<button class="pg" data-pg="${pg - 1}" aria-label="Previous page">${icon('M15 6l-6 6 6 6', 16)}</button>` : ''}${Array.from({ length: pages }, (_, i) => `<button class="pg ${i + 1 === pg ? 'on' : ''}" data-pg="${i + 1}">${i + 1}</button>`).join('')}${pg < pages ? `<button class="pg" data-pg="${pg + 1}" aria-label="Next page">${icon('M9 6l6 6-6 6', 16)}</button>` : ''}</div>` : ''}`;
+  const wire = (root) => {
+    root.querySelectorAll('[data-pg]').forEach((b) => (b.onclick = () => onPage?.(Number(b.dataset.pg))));
+    root.querySelectorAll('.tl-bar[data-r]').forEach((b) => (b.onclick = () => onBar?.(shown[Number(b.dataset.r)], shown[Number(b.dataset.r)].leaves[Number(b.dataset.l)], b)));
+  };
+  return { html, wire };
+}
+const legend = `<div class="legend"><span><i class="lg annual"></i>Annual</span><span><i class="lg sick"></i>Sick</span><span><i class="lg other"></i>Other leave</span><span><i class="lg pending"></i>Pending</span><span><i class="lg holiday"></i>Public holiday</span></div>`;
+
+async function awayView(self) {
+  const month = ls.get('wasl_awaymonth', new Date().toISOString().slice(0, 7));
+  const dept = self ? '' : ls.get('wasl_awaydept', '');
+  const page = Number(ls.get('wasl_awaypage', '1'));
+  const q = self ? '' : `${dept ? `&department=${encodeURIComponent(dept)}` : ''}${currentEst()?._id ? `&establishmentId=${currentEst()._id}` : ''}`;
+  const d = await api(`${self ? '/me/away' : '/away'}?month=${month}${q}`);
+  const depts = self ? [] : [...new Set((await api('/employees?status=active')).map((e) => e.department).filter(Boolean))].sort();
+  const g = awayGrid(d, { page, mine: self ? me.employeeId : null, onPage: (p) => { ls.set('wasl_awaypage', String(p)); awayView(self).catch(fail); },
+    onBar: (row, l, el) => {
+      const pop = $('#awayPop');
+      pop.innerHTML = `<div class="panel pop"><div style="display:flex;justify-content:space-between;gap:8px;align-items:start"><div><b>${esc(row.employee.fullName)}</b><div style="font-size:13px;color:var(--muted)">${esc(l.type === 'away' ? 'Away' : `${l.type} leave`)} · ${fmtDate(l.start)} → ${fmtDate(l.end)}${l.days ? ` · ${l.days} day(s)` : ''}</div>${l.reason ? `<div style="font-size:13px;margin-top:4px">${esc(l.reason)}</div>` : ''}</div>${statusPill(l.status)}</div>
+        ${!self && l.status === 'pending' && has('hr_admin', 'manager') ? `<div style="display:flex;gap:8px;margin-top:12px"><button class="btn sm" data-dec="rejected">Reject</button><button class="btn sm pri" data-dec="approved">Approve</button></div>` : ''}</div>`;
+      pop.querySelectorAll('[data-dec]').forEach((b) => (b.onclick = async () => { try { await api(`/leave/${l._id}/decision`, { method: 'POST', body: { decision: b.dataset.dec } }); toast(`Leave ${b.dataset.dec}`); awayView(self).catch(fail); } catch (err) { fail(err); } }));
+      translateTree(pop, L);
+    } });
+  V(`<div class="eyebrow">${self ? 'Your team' : esc(currentEst()?.name || '')}</div><h1>Who's <em>away</em></h1>
+  <p class="sub">${d.awayCount} ${d.awayCount === 1 ? 'person' : 'people'} away in ${esc(monthLabel(d.month))}${d.holidays.length ? ` · ${d.holidays.length} public holiday${d.holidays.length > 1 ? 's' : ''}` : ''}.${self ? ' You see dates only, not the type of leave.' : ' Click a bar for details; pending requests can be approved here.'}</p>
+  <div class="toolbar"><div class="monthnav"><button class="iconbtn" id="mPrev" aria-label="Previous month">${icon('M15 6l-6 6 6 6', 16)}</button><b>${esc(monthLabel(d.month))}</b><button class="iconbtn" id="mNext" aria-label="Next month">${icon('M9 6l6 6-6 6', 16)}</button><button class="btn sm" id="mToday">Today</button></div>
+    ${self ? '' : `<label class="sr" for="awDept">Team</label><select id="awDept" class="btn"><option value="">All teams</option>${depts.map((x) => `<option ${x === dept ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`}
+    <span style="margin-inline-start:auto">${legend}</span></div>
+  <div class="panel" style="padding:12px">${g.html}</div><div id="awayPop"></div>`);
+  g.wire($('#view'));
+  { const wrap = document.querySelector('.tl-wrap'), td = document.querySelector('.tl-h.today'), nm = document.querySelector('.tl-h.tl-name'); if (wrap && td && nm) wrap.scrollLeft = Math.max(0, td.offsetLeft - nm.offsetWidth - 2 * td.offsetWidth); }
+  const setM = (m) => { ls.set('wasl_awaymonth', m); ls.set('wasl_awaypage', '1'); awayView(self).catch(fail); };
+  $('#mPrev').onclick = () => setM(shiftMonth(d.month, -1)); $('#mNext').onclick = () => setM(shiftMonth(d.month, 1)); $('#mToday').onclick = () => setM(new Date().toISOString().slice(0, 7));
+  const ds = $('#awDept'); if (ds) ds.onchange = () => { ls.set('wasl_awaydept', ds.value); ls.set('wasl_awaypage', '1'); awayView(self).catch(fail); };
+}
+
+// ---- Applicant tracker (kanban with drag & drop) ----
+const STAGE_LABEL = { applied: 'Applied', screening: 'Screening', interviewed: 'Interviewed', offer: 'Made offer', hired: 'Hired', rejected: 'Not progressing' };
+const VISA_LABEL = { visit_visa: 'Visit visa', residence_on_notice: 'Residence visa (on notice)', golden_visa: 'Golden visa', uae_national: 'UAE national', outside_uae: 'Outside UAE', other: 'Other' };
+async function atsView() {
+  const list = await api('/applicants');
+  const showRejected = ls.get('wasl_atsrej', '0') === '1';
+  const stages = ['applied', 'screening', 'interviewed', 'offer', 'hired', ...(showRejected ? ['rejected'] : [])];
+  const can = has('hr_admin', 'manager');
+  V(`<div class="eyebrow">Recruitment</div><h1>Applicant <em>tracker</em></h1>
+  <p class="sub">${list.filter((a) => !['hired', 'rejected'].includes(a.stage)).length} people in the pipeline. ${can ? 'Drag a card to move it to the next stage, or use the menu on the card.' : ''}</p>
+  <div class="toolbar"><div class="search">${icon('M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3', 18)}<label class="sr" for="atsQ">Search applicants</label><input id="atsQ" type="search" placeholder="Search applicants…"></div>
+    <label class="chkline" style="min-height:auto"><input type="checkbox" id="atsRej" ${showRejected ? 'checked' : ''}> Show not progressing</label>
+    ${can ? `<button class="btn pri" id="atsAdd" style="margin-inline-start:auto">${icon('M12 5v14M5 12h14', 16)} Add applicant</button>` : ''}</div>
+  <div class="kanban" style="--cols:${stages.length}">${stages.map((s) => `<section class="kcol" data-stage="${s}" aria-label="${esc(STAGE_LABEL[s])}"><header><b>${esc(STAGE_LABEL[s])}</b><span class="kcount">${list.filter((a) => a.stage === s).length}</span></header><div class="kcards" data-drop="${s}">${list.filter((a) => a.stage === s).map((a) => `
+    <article class="kcard" draggable="${can}" data-id="${a._id}" data-q="${esc(`${a.name} ${a.role} ${a.department} ${a.email || ''} ${(a.tags || []).join(' ')}`.toLowerCase())}">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="min-width:0"><b>${esc(a.name)}</b><small>${esc(a.email || '')}</small></div>
+        ${can ? `<label class="sr" for="mv${a._id}">Move ${esc(a.name)}</label><select class="kmove" id="mv${a._id}" data-id="${a._id}">${['applied', 'screening', 'interviewed', 'offer', 'hired', 'rejected'].map((x) => `<option value="${x}" ${x === a.stage ? 'selected' : ''}>${esc(STAGE_LABEL[x])}</option>`).join('')}</select>` : ''}</div>
+      <div class="ktags"><span class="tag t0">${esc(a.role || '')}</span>${deptTag(a.department)}${(a.tags || []).slice(0, 2).map((x) => `<span class="tag tg">${esc(x)}</span>`).join('')}</div>
+      <div class="kfoot"><span title="${esc(VISA_LABEL[a.visaStatus] || '')}">${esc(VISA_LABEL[a.visaStatus] || '')}</span><span class="stars" aria-label="Rating ${a.rating} of 5">${'★'.repeat(a.rating || 0)}<span>${'★'.repeat(5 - (a.rating || 0))}</span></span></div>
+      ${a.expectedSalaryFils ? `<div class="kfoot"><span>Expects AED ${AED0(a.expectedSalaryFils)}</span><span>${esc(a.source || '')}</span></div>` : ''}
+    </article>`).join('') || '<div class="kempty">Drop a card here</div>'}</div></section>`).join('')}</div>`);
+  const move = async (id, stage) => {
+    const card = document.querySelector(`.kcard[data-id="${id}"]`);
+    try { await api(`/applicants/${id}`, { method: 'PATCH', body: { stage } }); toast(`Moved to ${STAGE_LABEL[stage]}`); }
+    catch (err) { fail(err); }
+    if (card && !REDUCE) { card.classList.add('leaving'); await new Promise((ok) => setTimeout(ok, 180)); }
+    atsView().catch(fail);
+  };
+  document.querySelectorAll('.kmove').forEach((s) => (s.onchange = () => move(s.dataset.id, s.value)));
+  document.querySelectorAll('.kcard[draggable="true"]').forEach((c) => {
+    c.addEventListener('dragstart', (ev) => { ev.dataTransfer.setData('text/plain', c.dataset.id); c.classList.add('dragging'); });
+    c.addEventListener('dragend', () => c.classList.remove('dragging'));
+  });
+  document.querySelectorAll('[data-drop]').forEach((z2) => {
+    z2.addEventListener('dragover', (ev) => { ev.preventDefault(); z2.classList.add('over'); });
+    z2.addEventListener('dragleave', () => z2.classList.remove('over'));
+    z2.addEventListener('drop', (ev) => { ev.preventDefault(); z2.classList.remove('over'); const id = ev.dataTransfer.getData('text/plain'); if (id) move(id, z2.dataset.drop); });
+  });
+  $('#atsQ').oninput = () => { const q = $('#atsQ').value.trim().toLowerCase(); document.querySelectorAll('.kcard').forEach((c) => { c.hidden = !!q && !c.dataset.q.includes(q); }); };
+  $('#atsRej').onchange = () => { ls.set('wasl_atsrej', $('#atsRej').checked ? '1' : '0'); atsView().catch(fail); };
+  const add = $('#atsAdd');
+  if (add) add.onclick = () => sheetForm('Add applicant', `<div class="form">
+    <div class="field"><label class="lbl" for="a_name">Full name</label><input id="a_name" required></div>
+    <div class="field"><label class="lbl" for="a_email">Email</label><input id="a_email" type="email"></div>
+    <div class="field"><label class="lbl" for="a_role">Role</label><input id="a_role" required placeholder="e.g. Sales Executive"></div>
+    <div class="field"><label class="lbl" for="a_dept">Team</label><input id="a_dept" placeholder="e.g. Sales"></div>
+    <div class="field"><label class="lbl" for="a_visa">Visa status</label><select id="a_visa">${Object.entries(VISA_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+    <div class="field"><label class="lbl" for="a_sal">Expected salary (AED / month)</label><input id="a_sal" inputmode="decimal"></div>
+    <div class="field"><label class="lbl" for="a_src">Source</label><input id="a_src" placeholder="LinkedIn, Bayt, referral, NAFIS…"></div>
+    <div class="field"><label class="lbl" for="a_phone">Phone</label><input id="a_phone"></div>
+    <div class="field" style="grid-column:1/-1"><label class="lbl" for="a_notes">Notes</label><textarea id="a_notes"></textarea></div></div>`,
+  async (s) => { const g2 = (k) => s.querySelector(`#a_${k}`).value.trim(); await api('/applicants', { method: 'POST', body: { name: g2('name'), email: g2('email'), role: g2('role'), department: g2('dept') || undefined, visaStatus: g2('visa'), expectedSalary: g2('sal') || undefined, source: g2('src') || undefined, phone: g2('phone') || undefined, notes: g2('notes') || undefined } }); toast('Applicant added'); atsView().catch(fail); }, 'Add applicant');
+}
+
+// ---- Wellness (HR aggregate) ----
+async function reflectView() {
+  const days = Number(ls.get('wasl_pulsedays', '30'));
+  const s = await api(`/pulse/summary?days=${days}`);
+  const bar = (v) => `<div class="hbar"><i style="width:${v ? (v / 5) * 100 : 0}%"></i></div>`;
+  V(`<div class="eyebrow">Wellness check-in</div><h1>How the team is <em>feeling</em></h1>
+  <p class="sub">Anonymous weekly check-ins from the employee app. HR only sees averages; teams with fewer than 3 answers are hidden.</p>
+  <div class="toolbar"><div class="seg" role="group" aria-label="Period">${[30, 60, 90].map((x) => `<button data-d="${x}" class="${x === days ? 'on' : ''}">${x} days</button>`).join('')}</div></div>
+  <div class="grid g4">
+    <div class="panel stat"><span class="lbl">Average mood</span><div class="v">${s.mood ?? '—'}<span style="font-size:20px;color:inherit;opacity:.7"> / 5</span></div><div class="d">${s.responses} check-ins</div></div>
+    <div class="panel stat"><span class="lbl">Participation</span><div class="v">${s.participation}%</div><div class="d">of active employees</div></div>
+    <div class="panel stat"><span class="lbl">Energy</span><div class="v">${s.energy ?? '—'}</div><div class="d">out of 5</div></div>
+    <div class="panel stat"><span class="lbl">Workload</span><div class="v ${s.workload >= 4 ? 'warn' : ''}">${s.workload ?? '—'}</div><div class="d">5 = overloaded</div></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="panel"><h2>Wellness by team</h2><div class="wtable">${s.byDept.map((d2) => `<div class="wrow"><div><b>${esc(d2.department)}</b><small>${d2.responses} answers</small></div>${d2.hidden ? '<span class="lbl">Too few answers to show</span>' : `<div class="wbars"><div><span class="lbl">Mood</span>${bar(d2.mood)}<b class="num">${d2.mood}</b></div><div><span class="lbl">Energy</span>${bar(d2.energy)}<b class="num">${d2.energy ?? '—'}</b></div><div class="wl"><span class="lbl">Workload</span>${bar(d2.workload)}<b class="num">${d2.workload ?? '—'}</b></div></div>`}</div>`).join('') || '<div class="empty">No check-ins yet.</div>'}</div></div>
+    <div class="panel"><h2>Mood trend</h2><div class="wtrend">${s.weeks.map((w) => `<div class="wcol" title="${esc(`${w.from} → ${w.to}: ${w.mood ?? 'no data'} (${w.responses})`)}"><span class="num">${w.mood ?? '—'}</span><i style="height:${w.mood ? (w.mood / 5) * 100 : 4}%"></i><small>${esc(fmtDate(w.from).slice(5))}</small></div>`).join('')}</div>
+      <h2 style="margin-top:22px">Recent comments</h2><div class="list">${s.comments.map((c) => `<div class="row"><div class="grow">“${esc(c.comment)}”</div><span class="lbl">${esc(c.date)}</span></div>`).join('') || '<div class="empty">No comments.</div>'}</div></div>
+  </div>`);
+  document.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => { ls.set('wasl_pulsedays', b.dataset.d); reflectView().catch(fail); }));
+}
+
+// ---- Wellness (employee check-in) ----
+async function ereflectView() {
+  const ws = await api('/me/workspace');
+  const done = ws.pulseToday;
+  const scale = (key, label, lo, hi, cur2) => `<fieldset class="scale"><legend>${esc(label)}</legend><div class="scale-row">${[1, 2, 3, 4, 5].map((n) => `<label class="sc ${cur2 === n ? 'on' : ''}"><input type="radio" name="${key}" value="${n}" ${cur2 === n ? 'checked' : ''}><span class="sc-dot">${n}</span></label>`).join('')}</div><div class="scale-ends"><span>${esc(lo)}</span><span>${esc(hi)}</span></div></fieldset>`;
+  V(`<div class="eyebrow">Weekly check-in · anonymous</div><h1>How are you <em>doing?</em></h1>
+  <p class="sub">Takes 20 seconds. HR only sees team averages, never your individual answers.</p>
+  <form class="panel checkin" id="pulseForm">
+    ${scale('mood', 'How do you feel at work this week?', 'Not good', 'Great', done?.mood)}
+    ${scale('energy', 'How is your energy?', 'Drained', 'Full of energy', done?.energy)}
+    ${scale('workload', 'How is your workload?', 'Too light', 'Too heavy', done?.workload)}
+    <div class="field"><label class="lbl" for="pComment">Anything you'd like HR to know? (optional)</label><textarea id="pComment" maxlength="500">${esc(done?.comment || '')}</textarea></div>
+    <button class="btn pri" type="submit">${done ? 'Update check-in' : 'Send check-in'}</button>
+    ${done ? '<p class="note" style="margin:0">You already checked in today. You can update your answers.</p>' : ''}
+  </form>`);
+  document.querySelectorAll('.sc input').forEach((i) => (i.onchange = () => { i.closest('.scale-row').querySelectorAll('.sc').forEach((l) => l.classList.toggle('on', l.contains(i))); }));
+  $('#pulseForm').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const v = (n) => Number(document.querySelector(`input[name="${n}"]:checked`)?.value || 0) || undefined;
+    if (!v('mood')) return toast('Choose how you feel first');
+    try { const r = await api('/me/pulse', { method: 'POST', body: { mood: v('mood'), energy: v('energy'), workload: v('workload'), comment: $('#pComment').value.trim() || undefined } }); toast(r.message); ereflectView().catch(fail); } catch (err) { fail(err); }
+  };
+}
+
+// ---- Tasks / calendar / hours widgets (dashboard + employee home) ----
+function workspaceHtml(ws, self) {
+  const t0 = new Date(`${ws.date}T00:00:00Z`); const dow = t0.getUTCDay();
+  const week = Array.from({ length: 7 }, (_, i) => { const x = new Date(t0); x.setUTCDate(t0.getUTCDate() - dow + i); return x.toISOString().slice(0, 10); });
+  const maxH = Math.max(9, ...ws.hours.map((h) => h.hours));
+  const open = ws.tasks.filter((x) => !x.done).length;
+  return `<div class="grid g3 ws" style="margin-top:16px">
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:baseline"><h2 style="margin:0">My tasks</h2><span class="lbl">${open} active</span></div>
+      <div class="tasks" style="margin-top:10px">${ws.tasks.map((x) => `<label class="task ${x.done ? 'done' : ''}"><input type="checkbox" data-task="${x._id}" ${x.done ? 'checked' : ''}><span class="tk"></span><span class="tt">${esc(x.title)}</span>${x.done ? '' : dueLabel(x.dueDate)}</label>`).join('') || '<div class="empty">No tasks. Enjoy the calm.</div>'}</div>
+      <form class="addtask" id="taskForm"><label class="sr" for="taskIn">New task</label><input id="taskIn" placeholder="Add a task…" maxlength="160"><button class="btn sm" type="submit">Add</button></form></div>
+    <div class="panel"><h2>${esc(new Date(`${ws.date}T00:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }))}</h2>
+      <div class="weekstrip">${week.map((x) => `<div class="wd ${x === ws.date ? 'on' : ''}"><small>${new Date(`${x}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' })}</small><b>${Number(x.slice(8))}</b>${ws.events.some((e) => e.date === x) ? '<i></i>' : ''}</div>`).join('')}</div>
+      <div class="list" style="margin-top:8px">${ws.events.slice(0, 5).map((e) => `<div class="row evt"><span class="evd"><b>${Number(e.date.slice(8))}</b><small>${new Date(`${e.date}T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}</small></span><div class="grow"><b style="font-weight:500">${esc(e.title)}</b><div style="font-size:12px;color:var(--muted)">${esc(e.detail || '')}</div></div><span class="num" style="font-size:12.5px;color:var(--muted)">${esc(e.start || '')}${e.end && e.end !== e.start ? `–${esc(e.end)}` : ''}</span></div>`).join('') || '<div class="empty">Nothing scheduled.</div>'}</div></div>
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:baseline"><h2 style="margin:0">${self ? 'My working hours' : 'Average hours per person'}</h2><span class="lbl">Last 7 days</span></div>
+      <div class="hours">${ws.hours.map((h) => `<div class="hcol" title="${esc(`${h.date}: ${h.hours} h${self ? '' : ` · ${h.people} people`}`)}"><span class="num">${h.hours ? h.hours : ''}</span><div class="htrack"><i style="height:${(h.hours / maxH) * 100}%"></i></div><small>${esc(h.weekday)}</small></div>`).join('')}</div>
+      <div class="hscale"><span>0h</span><span>${Math.round(maxH / 2)}h</span><span>${maxH}h</span></div></div>
+  </div>`;
+}
+function wireWorkspace(self, reload) {
+  const base = self ? '/me/tasks' : '/tasks';
+  document.querySelectorAll('[data-task]').forEach((c) => (c.onchange = async () => { c.closest('.task').classList.toggle('done', c.checked); try { await api(`${base}/${c.dataset.task}`, { method: 'PATCH', body: { done: c.checked } }); } catch (err) { fail(err); } }));
+  const f = $('#taskForm'); if (f) f.onsubmit = async (ev) => { ev.preventDefault(); const v = $('#taskIn').value.trim(); if (!v) return; try { await api(base, { method: 'POST', body: { title: v } }); toast('Task added'); reload(); } catch (err) { fail(err); } };
+}
+
+// Hook the widgets into the existing HR dashboard and employee home without changing them
+const baseDash = views.dash, baseEhome = views.ehome;
+views.dash = async () => {
+  await baseDash();
+  try {
+    const ws = await api('/workspace');
+    const box = document.createElement('div'); box.innerHTML = workspaceHtml(ws, false);
+    const anchor = document.querySelector('#view .grid.g3'); (anchor ? anchor.parentNode.insertBefore(box, anchor.nextSibling) : $('#view').appendChild(box));
+    const tiles = document.createElement('div'); tiles.className = 'qtiles';
+    tiles.innerHTML = [['leave', 'Leave requests', `${ws.counts.pendingLeave} waiting`, 'q1'], ['ats', 'Applicant tracker', `${ws.counts.openApplicants} in pipeline`, 'q2'], ['away', "Who's away", 'Team calendar', 'q3'], ['reflect', 'Wellness', 'Team check-ins', 'q4']]
+      .map(([m, tl, sub, cls]) => `<button class="qtile ${cls}" data-go="${m}"><span>${icon(ICONS[m], 22)}</span><b>${tl}</b><small>${sub}</small></button>`).join('');
+    const sub = document.querySelector('#view .sub'); sub.parentNode.insertBefore(tiles, sub.nextSibling);
+    translateTree($('#view'), L); animateView(box); animateView(tiles);
+    tiles.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => go(b.dataset.go)));
+    wireWorkspace(false, () => views.dash().catch(fail));
+  } catch { /* widgets are optional */ }
+};
+views.ehome = async () => {
+  await baseEhome();
+  try {
+    const ws = await api('/me/workspace');
+    const box = document.createElement('div'); box.innerHTML = workspaceHtml(ws, true);
+    const stats = document.querySelector('#view .grid.g4'); stats.parentNode.insertBefore(box, stats.nextSibling);
+    if (!ws.pulseToday) { const n = document.createElement('div'); n.className = 'panel nudge'; n.innerHTML = `<div><b>Weekly check-in</b><div style="font-size:13px;color:var(--muted)">How are you doing this week? It's anonymous and takes 20 seconds.</div></div><button class="btn pri sm" data-go="ereflect">Check in</button>`; box.prepend(n); n.querySelector('[data-go]').onclick = () => go('ereflect'); }
+    translateTree(box, L); animateView(box);
+    wireWorkspace(true, () => views.ehome().catch(fail));
+  } catch { /* widgets are optional */ }
+};
+Object.assign(views, { away: () => awayView(false), eaway: () => awayView(true), ats: atsView, reflect: reflectView, ereflect: ereflectView });
 
 window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (token && mods().includes(m) && m !== cur) { cur = m; shell(); } });
 startBackground();
