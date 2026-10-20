@@ -157,7 +157,7 @@ function shell() {
     $('#root').innerHTML = `<div class="app ${isStaffUser() ? '' : 'emp'}">
   <header class="topbar"><div class="topbar-in">
     <a class="brand" href="${isStaffUser() ? '/' : '/employee'}" aria-label="Wasl home"><span class="mark">W</span><span class="brand-txt"><b>Wasl</b><span class="by">by <img src="devx-logo-dark.png" alt="DevX Technologies"></span></span></a>
-    <nav class="navpills" aria-label="Main">${mods().map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m], 18)}<span>${t(m)}</span></button>`).join('')}</nav>
+    ${isStaffUser() ? `<nav class="navpills" aria-label="Main">${mods().map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m], 18)}<span>${t(m)}</span></button>`).join('')}</nav>` : `<button class="iconbtn menubtn" id="menuBtn" aria-label="Open menu" aria-controls="sidenav" aria-expanded="false">${icon('M4 7h16M4 12h16M4 17h16', 20)}</button><div class="page-title">${esc(t(cur))}</div>`}
     <div class="actions">
       <div style="position:relative"><button class="iconbtn" id="bell" aria-label="Notifications" title="Notifications">${icon('M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0', 18)}<span id="bellCt" class="ct" hidden></span></button>
         <div id="bellPanel" class="panel popover" hidden></div></div>
@@ -165,6 +165,12 @@ function shell() {
       <div style="position:relative"><button class="avatarbtn" id="whoBtn" aria-haspopup="true" aria-expanded="false"><span class="av">${esc(ini(me.name))}</span><span class="who-txt"><b>${esc(me.name)}</b><small>${esc(isStaffUser() ? me.roles.map((r) => r.replace('_', ' ')).join(', ') : 'Employee')}</small></span></button>
         <div id="whoMenu" class="panel popover" hidden style="width:240px"><div style="font-weight:600">${esc(me.name)}</div><div style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(me.email || '')}</div><button class="btn" id="so" style="width:100%">${t('signout')}</button></div></div>
     </div></div></header>
+  ${isStaffUser() ? '' : `<aside class="sidenav" id="sidenav" aria-label="Main">
+    <div class="sn-head"><span class="mark">W</span><div><b>Wasl</b><small>Employee app</small></div><button class="iconbtn sn-close" id="snClose" aria-label="Close menu">${icon('M6 6l12 12M18 6L6 18', 18)}</button></div>
+    <div class="sn-who"><span class="av">${esc(ini(me.name))}</span><div style="min-width:0"><b>${esc(me.name)}</b><small>Employee</small></div></div>
+    <nav class="sn-nav">${mods().map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}">${icon(ICONS[m], 19)}<span>${t(m)}</span></button>`).join('')}</nav>
+    <div class="sn-foot"><button class="btn" id="so2" style="width:100%">${t('signout')}</button><div class="powered"><span>POWERED BY</span><img src="devx-logo-dark.png" alt="DevX Technologies"></div></div>
+  </aside><div class="scrim" id="scrim" hidden></div>`}
   <main>
     <div class="top"><form class="cmd" id="cf">${icon('M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z', 18)}<input id="cmd" autocomplete="off" placeholder="${esc(isStaffUser() ? t('ph') : 'Ask… e.g. I need a salary certificate for Emirates NBD')}"><button class="btn pri sm" type="submit">${t('run')}</button></form>
     ${isStaffUser() ? '<label class="sr" for="estSel">Entity</label><select id="estSel" class="btn" style="max-width:260px" title="Entity"></select>' : ''}</div>
@@ -173,6 +179,15 @@ function shell() {
   </main></div>`;
   document.querySelectorAll('.nav').forEach((b) => (b.onclick = () => go(b.dataset.m)));
   $('#so').onclick = signOut;
+  if (!isStaffUser()) {
+    const sn = $('#sidenav'), scrim = $('#scrim'), mb = $('#menuBtn');
+    const setOpen = (o) => { document.body.classList.toggle('navopen', o); scrim.hidden = !o; mb.setAttribute('aria-expanded', String(o)); if (o) sn.querySelector('.nav.on')?.focus(); };
+    mb.onclick = () => setOpen(!document.body.classList.contains('navopen'));
+    $('#snClose').onclick = () => setOpen(false); scrim.onclick = () => setOpen(false);
+    sn.onkeydown = (ev) => { if (ev.key === 'Escape') { setOpen(false); mb.focus(); } };
+    $('#so2').onclick = signOut;
+    document.body.classList.remove('navopen');
+  }
   $('#whoBtn').onclick = (e) => { e.stopPropagation(); const m = $('#whoMenu'); m.hidden = !m.hidden; $('#whoBtn').setAttribute('aria-expanded', String(!m.hidden)); };
   if (!window.__whoBound) { window.__whoBound = true; document.addEventListener('click', (e) => { const m = $('#whoMenu'); if (m && !m.hidden && !e.target.closest('#whoMenu')) m.hidden = true; }); }
   { const on = document.querySelector('.navpills .nav.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' }); }
@@ -207,7 +222,7 @@ async function loadBell() {
     panel.querySelectorAll('[data-link]').forEach((b) => (b.onclick = () => { panel.hidden = true; go(b.dataset.link); }));
   } catch { /* bell is optional */ }
 }
-function go(m) { cur = m; location.hash = m; shell(); }
+function go(m) { if (m === 'emp') { EMP_OPEN = ''; try { localStorage.removeItem('wasl_empid'); } catch {} } cur = m; location.hash = m; shell(); }
 const V = (html) => { $('#view').innerHTML = html; translateTree($('#view'), L); animateView($('#view')); };
 // Entrance motion: staggered card rise + count-up numbers (skipped for reduced-motion users)
 const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1164,6 +1179,271 @@ function empStrip(title, sub) {
   if (h1 && !document.querySelector('#view .sub')) h1.insertAdjacentHTML('afterend', `<p class="sub">${esc(sub)}</p>`);
   translateTree($('#view'), L);
 }
+
+// ================= HR: employee directory (search) + full-page employee profile =================
+let EMP_OPEN = (() => { try { return localStorage.getItem('wasl_empid') || ''; } catch { return ''; } })();
+const openEmployee = (id) => { EMP_OPEN = id; try { localStorage.setItem('wasl_empid', id); } catch {} cur = 'emp'; location.hash = 'emp'; shell(); window.scrollTo({ top: 0 }); };
+const closeEmployee = () => { EMP_OPEN = ''; try { localStorage.removeItem('wasl_empid'); } catch {} views.emp().catch(fail); };
+const val = (x) => (x == null || x === '' ? '—' : esc(x));
+const dateIn = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+const kv = (rows) => `<dl class="kv">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
+function sheetForm(title, inner, onSubmit, submitLabel = 'Save changes') {
+  const sh = document.createElement('div'); sh.className = 'sheet';
+  sh.innerHTML = `<form class="sheet-card panel wide" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">${esc(title)}</h2><button type="button" class="iconbtn" data-x aria-label="Close">${icon('M6 6l12 12M18 6L6 18', 18)}</button></div>${inner}<div class="err" data-err></div><div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" data-x>Cancel</button><button class="btn pri" type="submit">${esc(submitLabel)}</button></div></form>`;
+  document.body.appendChild(sh); translateTree(sh, L);
+  const close = () => sh.remove();
+  sh.querySelectorAll('[data-x]').forEach((b) => (b.onclick = close));
+  sh.addEventListener('click', (e) => { if (e.target === sh) close(); });
+  sh.querySelector('form').onsubmit = async (e) => { e.preventDefault(); try { await onSubmit(sh); close(); } catch (err) { sh.querySelector('[data-err]').textContent = err.message; } };
+  sh.querySelector('input,select,textarea')?.focus();
+  return sh;
+}
+
+async function employeeDirectory() {
+  const list = await api(`/employees${currentEst()?._id ? `?establishmentId=${currentEst()._id}` : ''}`);
+  const depts = [...new Set(list.map((e) => e.department).filter(Boolean))].sort();
+  const saved = (() => { try { return JSON.parse(localStorage.getItem('wasl_empfilter') || '{}'); } catch { return {}; } })();
+  V(`<div class="eyebrow">${esc(currentEst()?.name || '')}</div><h1>${t('emp')}</h1>
+  <p class="sub">${list.length} people. Search by name, employee number, job, team, nationality or email, then open anyone for their full profile.</p>
+  <div class="toolbar">
+    <div class="search">${icon('M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3', 18)}<label class="sr" for="empQ">Search employees</label><input id="empQ" type="search" placeholder="Search employees…  ( / )" value="${esc(saved.q || '')}" autocomplete="off"></div>
+    <label class="sr" for="empDept">Team</label><select id="empDept" class="btn"><option value="">All teams</option>${depts.map((d) => `<option ${saved.dept === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select>
+    <label class="sr" for="empStatus">Status</label><select id="empStatus" class="btn"><option value="">Any status</option>${['active', 'onboarding', 'notice', 'exited'].map((s) => `<option value="${s}" ${saved.status === s ? 'selected' : ''}>${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}</select>
+    <span id="empCount" class="lbl" style="margin-inline-start:auto"></span>
+  </div>
+  <div class="panel tw" style="padding-top:8px"><table class="clickable"><thead><tr><th>Employee</th><th>Role</th><th>Team</th><th>Nationality</th><th>Joined</th><th>Status</th><th>IBAN</th><th class="r">Basic (AED)</th></tr></thead><tbody id="empRows"></tbody></table></div>`);
+  const draw = () => {
+    const q = $('#empQ').value.trim().toLowerCase(), dept = $('#empDept').value, st = $('#empStatus').value;
+    try { localStorage.setItem('wasl_empfilter', JSON.stringify({ q, dept, status: st })); } catch {}
+    const rows = list.filter((e) => (!dept || e.department === dept) && (!st || e.status === st) && (!q || [e.fullName, e.fullNameAr, e.employeeNo, e.jobTitle, e.department, e.nationality, e.email].some((x) => String(x || '').toLowerCase().includes(q))));
+    $('#empCount').textContent = `${rows.length} of ${list.length}`;
+    $('#empRows').innerHTML = rows.map((e) => `<tr data-open="${e._id}" tabindex="0"><td><div style="display:flex;gap:10px;align-items:center"><span class="av">${esc(ini(e.fullName))}</span><div><b style="font-weight:500">${esc(L === 'ar' && e.fullNameAr ? e.fullNameAr : e.fullName)}</b><div class="mono" style="font-size:11px;color:var(--muted)">${esc(e.employeeNo)}</div></div></div></td>
+      <td>${esc(e.jobTitle || '')}</td><td>${esc(e.department || '')}</td><td>${e.isUaeNational ? pill('p-g', 'UAE National') : esc(e.nationality || '')}</td><td class="mono">${fmtDate(e.joinDate)}</td>
+      <td>${pill(e.status === 'active' ? 'p-ok' : e.status === 'exited' ? 'p-bad' : 'p-warn', e.status)}</td>
+      <td>${e.ibanValid ? `<span class="mono">${esc(e.bank?.ibanMasked || '')}</span>` : pill('p-bad', 'Invalid')}</td><td class="r num">${AED(e.compensation?.basicFils || 0)}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">No one matches. Try a different search.</td></tr>';
+    translateTree($('#empRows'), L);
+    document.querySelectorAll('[data-open]').forEach((tr) => { tr.onclick = () => openEmployee(tr.dataset.open); tr.onkeydown = (ev) => { if (ev.key === 'Enter') openEmployee(tr.dataset.open); }; });
+  };
+  ['#empQ', '#empDept', '#empStatus'].forEach((s) => $(s).addEventListener('input', draw));
+  draw();
+  if (!window.__slashBound) { window.__slashBound = true; document.addEventListener('keydown', (ev) => { if (ev.key === '/' && cur === 'emp' && !/input|textarea|select/i.test(document.activeElement?.tagName)) { const i = $('#empQ'); if (i) { ev.preventDefault(); i.focus(); } } }); }
+}
+
+async function employeeProfile(id) {
+  const tab = (() => { try { return localStorage.getItem('wasl_emptab') || 'overview'; } catch { return 'overview'; } })();
+  const month = (() => { try { return localStorage.getItem('wasl_empmonth') || new Date().toISOString().slice(0, 7); } catch { return new Date().toISOString().slice(0, 7); } })();
+  let d;
+  try { d = await api(`/employees/${id}/full?month=${month}`); } catch (e) { EMP_OPEN = ''; throw e; }
+  const e = d.employee, admin = has('hr_admin');
+  const c = e.compensation || {}, total = (c.basicFils || 0) + (c.housingFils || 0) + (c.transportFils || 0) + (c.allowances || []).reduce((a, x) => a + x.amountFils, 0);
+  const tabs = [['overview', 'Overview'], ['attendance', 'Attendance'], ['leave', 'Leave'], ['payslips', 'Payslips'], ['documents', 'Documents'], ['requests', 'Requests'], ['tag', 'ID tag'], ['activity', 'Activity']];
+  V(`<button class="btn sm" id="back">${icon('M15 6l-6 6 6 6', 16)} All employees</button>
+  <div class="profile-head panel">
+    <div class="ph-av">${esc(ini(e.fullName))}</div>
+    <div class="ph-main"><div class="eyebrow">${esc(d.establishment?.name || '')}${d.establishment?.freeZone ? ` · ${esc(d.establishment.freeZone)}` : ''}</div>
+      <h1 style="margin:2px 0 4px">${esc(e.fullName)}</h1>${e.fullNameAr ? `<div dir="rtl" style="color:var(--muted);text-align:start">${esc(e.fullNameAr)}</div>` : ''}
+      <div class="ph-meta">${pill(e.status === 'active' ? 'p-ok' : e.status === 'exited' ? 'p-bad' : 'p-warn', e.status)}<span>${esc(e.jobTitle || '')}</span><span>${esc(e.department || '')}</span><span class="mono">${esc(e.employeeNo)}</span>${e.isUaeNational ? pill('p-g', 'UAE National') : `<span>${esc(e.nationality || '')}</span>`}</div></div>
+    <div class="ph-actions">${admin ? `<button class="btn pri" id="pEdit">${icon('M4 20h4L19 9l-4-4L4 16zM14 6l4 4', 16)} Edit details</button><button class="btn" id="pDoc">Upload document</button><button class="btn" id="pLetter">Issue letter</button><button class="btn" id="pLeave">Add leave</button>` : ''}</div>
+  </div>
+  <div class="grid g4" style="margin-top:16px">
+    <div class="panel stat"><span class="lbl">Monthly package · AED</span><div class="v num">${AED0(total)}</div><div class="d">Basic ${AED0(c.basicFils || 0)}</div></div>
+    <div class="panel stat"><span class="lbl">Annual leave left</span><div class="v">${d.balances.annual?.remaining ?? '—'}</div><div class="d">of ${d.balances.annual?.entitlement ?? '—'} days</div></div>
+    <div class="panel stat"><span class="lbl">Present in ${esc(new Date(month + '-01').toLocaleDateString('en-GB', { month: 'long' }))}</span><div class="v">${d.attendance.summary.daysPresent}</div><div class="d">${d.attendance.summary.lateDays} late · ${d.attendance.summary.hoursWorked} h</div></div>
+    <div class="panel stat"><span class="lbl">Documents</span><div class="v ${d.documents.some((x) => x.daysLeft <= 30) ? 'warn' : ''}">${d.documents.length}</div><div class="d">${d.documents.filter((x) => x.daysLeft <= 30).length} expiring within 30 days</div></div>
+  </div>
+  <div class="tabs" role="tablist" style="margin-top:20px">${tabs.map(([k, v]) => `<button role="tab" data-ptab="${k}" class="${tab === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+  <div id="pBody"></div>`);
+  $('#back').onclick = closeEmployee;
+  document.querySelectorAll('[data-ptab]').forEach((b) => (b.onclick = () => { try { localStorage.setItem('wasl_emptab', b.dataset.ptab); } catch {} employeeProfile(id).catch(fail); }));
+  const body = $('#pBody'); const put = (html) => { body.innerHTML = html; translateTree(body, L); animateView(body); };
+  const reload = () => employeeProfile(id).catch(fail);
+
+  if (tab === 'overview') {
+    put(`<div class="grid g3">
+      <div class="panel"><h2>Personal</h2>${kv([['Full name', val(e.fullName)], ['Arabic name', val(e.fullNameAr)], ['Nationality', val(e.nationality)], ['Gender', val({ M: 'Male', F: 'Female' }[e.gender])], ['Date of birth', val(fmtDate(e.dateOfBirth))], ['Email', val(e.email)], ['Phone', val(e.phone)], ['Emirates ID', e.emiratesIdLast4 ? `<span class="mono">•••• ${esc(e.emiratesIdLast4)}</span>` : '—']])}</div>
+      <div class="panel"><h2>Job</h2>${kv([['Job title', val(e.jobTitle)], ['Team', val(e.department)], ['Establishment', val(d.establishment?.name)], ['Contract', val(e.contractType)], ['Joined', val(fmtDate(e.joinDate))], ['Probation ends', val(fmtDate(e.probationEndDate))], ['MOHRE skill level', val(e.mohreSkillLevel)], ['Labour card', e.labourCardLast4 ? `<span class="mono">•••• ${esc(e.labourCardLast4)}</span>` : '—']])}</div>
+      <div class="panel"><h2>Pay &amp; bank</h2>${kv([['Basic', `<span class="num">AED ${AED(c.basicFils || 0)}</span>`], ['Housing', `<span class="num">AED ${AED(c.housingFils || 0)}</span>`], ['Transport', `<span class="num">AED ${AED(c.transportFils || 0)}</span>`], ['Total', `<b class="num">AED ${AED(total)}</b>`], ['Bank', val(e.bank?.bankName)], ['IBAN', e.bank?.ibanMasked ? `<span class="mono">${esc(e.bank.ibanMasked)}</span>` : '—'], ['Paid via WPS', e.paidViaWps ? 'Yes' : 'No'], ['Pension (GPSSA)', e.pensionRegistered ? 'Registered' : 'Not registered']])}
+        ${(e.compensationHistory || []).length ? `<details style="margin-top:10px"><summary class="lbl" style="cursor:pointer">Salary history (${e.compensationHistory.length})</summary><div class="list">${e.compensationHistory.slice().reverse().map((h) => `<div class="row"><div class="grow num">AED ${AED((h.basicFils || 0) + (h.housingFils || 0) + (h.transportFils || 0))}</div><span class="lbl">from ${fmtDate(h.effectiveFrom)}</span></div>`).join('')}</div></details>` : ''}</div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="panel"><h2>Emergency contacts</h2>${(e.emergencyContacts || []).length ? `<div class="list">${e.emergencyContacts.map((x) => `<div class="row"><div class="grow">${esc(x.name)}<div style="font-size:12px;color:var(--muted)">${esc(x.relation || '')}</div></div><span class="mono">${esc(x.phone || '')}</span></div>`).join('')}</div>` : '<div class="empty">None added yet.</div>'}</div>
+      <div class="panel"><h2>Employee login</h2>${d.login ? `${kv([['Sign-in email', esc(d.login.email)], ['Status', d.login.active ? pill('p-ok', 'Active') : pill('p-bad', 'Disabled')], ['Last sign-in', val(d.login.lastLoginAt ? new Date(d.login.lastLoginAt).toLocaleString('en-GB') : 'Never')], ['Two-step sign-in', d.login.mfaEnabled ? 'On' : 'Off']])}
+        ${admin ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn sm" data-login="reset">Reset password</button><button class="btn sm" data-login="${d.login.active ? 'disable' : 'enable'}">${d.login.active ? 'Disable login' : 'Enable login'}</button></div>` : ''}`
+        : `<p style="margin:0 0 12px;color:var(--muted)">No login yet. Create one so ${esc(e.fullName.split(' ')[0])} can clock in, apply for leave and see payslips.</p>${admin ? `<button class="btn pri sm" data-login="create">Create employee login</button>` : ''}`}
+        <div id="loginOut"></div></div>
+    </div>`);
+    body.querySelectorAll('[data-login]').forEach((b) => (b.onclick = async () => {
+      try {
+        const r = await api(`/employees/${id}/login`, { method: 'POST', body: { action: b.dataset.login, email: e.email || undefined } });
+        if (r.tempPassword) {
+          $('#loginOut').innerHTML = `<div class="note" style="background:var(--accent-soft)"><b>${esc(r.message)}</b><br>Email <span class="mono">${esc(r.email)}</span> · Temporary password <span class="mono" id="tmpPw">${esc(r.tempPassword)}</span> <button class="btn sm" id="cpPw">Copy</button><br>Employee sign-in: <span class="mono">${esc(location.origin)}/employee</span></div>`;
+          $('#cpPw').onclick = async () => { try { await navigator.clipboard.writeText(`${r.email} / ${r.tempPassword}`); toast('Copied'); } catch { toast('Select the password to copy it'); } };
+        } else { toast(r.message); reload(); }
+      } catch (err) { fail(err); }
+    }));
+  } else if (tab === 'attendance') {
+    const months = Array.from({ length: 4 }, (_, i) => { const x = new Date(); x.setMonth(x.getMonth() - i); return x.toISOString().slice(0, 7); });
+    put(`<div class="panel tw"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Clock-ins</h2>
+      <div class="seg" role="group" aria-label="Month">${months.map((m) => `<button data-m="${m}" class="${m === month ? 'on' : ''}">${new Date(m + '-01').toLocaleDateString('en-GB', { month: 'short' })}</button>`).join('')}</div></div>
+      <table style="margin-top:8px"><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Worked</th><th>Location</th><th>Flags</th><th></th></tr></thead><tbody>
+      ${d.attendance.records.map((a) => `<tr><td class="mono">${esc(a.date)}${a.seq ? ` <span class="lbl">#${a.seq + 1}</span>` : ''}</td><td class="num">${fmtTime(a.clockIn?.at)}</td><td class="num">${fmtTime(a.clockOut?.at)}</td><td class="num">${hmFromMin(a.minutesWorked)}</td>
+        <td style="font-size:13px">${a.clockIn?.lat != null ? `<a href="https://www.google.com/maps?q=${a.clockIn.lat},${a.clockIn.lng}" target="_blank" rel="noopener">${a.clockIn.insideGeofence ? 'On site' : `${distLabel(a.clockIn.distanceM)} away`}</a>` : '<span style="color:var(--bad)">No GPS</span>'}</td>
+        <td>${flagPills(a.flags) || '<span style="color:var(--muted)">On time</span>'}</td><td>${a.hasPhoto ? `<button class="btn sm" data-ph="${a._id}">Photo</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No clock-ins this month.</td></tr>'}
+      </tbody></table></div><div id="phView"></div>`);
+    body.querySelectorAll('.seg [data-m]').forEach((b) => (b.onclick = () => { try { localStorage.setItem('wasl_empmonth', b.dataset.m); } catch {} reload(); }));
+    body.querySelectorAll('[data-ph]').forEach((b) => (b.onclick = async () => { try { const r = await api(`/attendance/${b.dataset.ph}/photo`); $('#phView').innerHTML = `<div class="panel" style="margin-top:16px;max-width:380px"><h2>Clock-in photo</h2><img src="${r.photo}" alt="Clock-in photo" style="width:100%;border-radius:12px"></div>`; $('#phView').scrollIntoView({ behavior: 'smooth' }); } catch (err) { fail(err); } }));
+  } else if (tab === 'leave') {
+    const b2 = d.balances;
+    put(`<div class="grid g3">
+      <div class="panel stat"><span class="lbl">Annual leave</span><div class="v">${b2.annual?.remaining ?? '—'}</div><div class="d">of ${b2.annual?.entitlement ?? '—'} · ${esc(b2.annual?.basis || '')}</div></div>
+      <div class="panel stat"><span class="lbl">Full-pay sick days left</span><div class="v">${b2.sick?.fullPayLeft ?? '—'}</div><div class="d">${b2.sick?.taken ?? 0} taken this year</div></div>
+      <div class="panel stat"><span class="lbl">Requests</span><div class="v">${d.leaves.length}</div><div class="d">${d.leaves.filter((l) => l.status === 'pending').length} waiting for a decision</div></div></div>
+    <div class="panel" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Leave history</h2>${admin ? '<button class="btn sm" id="pLeave2">Add leave</button>' : ''}</div>
+      <div class="list" style="margin-top:6px">${d.leaves.map((l) => `<div class="row"><div class="grow">${esc(l.type)} · <span class="mono">${fmtDate(l.startDate)} → ${fmtDate(l.endDate)}</span> (${l.days}d)${l.unpaidDays ? `<div style="font-size:12px;color:var(--warn)">${l.unpaidDays} unpaid day(s)</div>` : ''}${l.reason ? `<div style="font-size:12px;color:var(--muted)">${esc(l.reason)}</div>` : ''}</div>
+        ${l.status === 'pending' && has('hr_admin', 'manager') ? `<button class="btn sm" data-dec="rejected" data-l="${l._id}">Reject</button><button class="btn sm pri" data-dec="approved" data-l="${l._id}">Approve</button>` : statusPill(l.status)}</div>`).join('') || '<div class="empty">No leave yet.</div>'}</div></div>`);
+    body.querySelectorAll('[data-dec]').forEach((b) => (b.onclick = async () => { try { await api(`/leave/${b.dataset.l}/decision`, { method: 'POST', body: { decision: b.dataset.dec } }); toast(`Leave ${b.dataset.dec}`); reload(); } catch (err) { fail(err); } }));
+    const l2 = $('#pLeave2'); if (l2) l2.onclick = () => addLeave(id, e, reload);
+  } else if (tab === 'payslips') {
+    put(`<div class="panel tw"><h2>Payslips</h2><table><thead><tr><th>Period</th><th>Type</th><th>Status</th><th class="r">Gross</th><th class="r">Net</th><th></th></tr></thead><tbody>
+      ${d.payslips.map((p) => `<tr><td class="mono">${esc(p.period)}</td><td>${esc(p.type)}</td><td>${statusPill(p.status)}</td><td class="r num">${AED(p.grossFils)}</td><td class="r num"><b>${AED(p.netFils)}</b></td><td><button class="btn sm" data-ps="${p.runId}">View</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">No payroll lines yet.</td></tr>'}
+      </tbody></table><p class="note">HR sees every run, including drafts. The employee only sees approved payslips.</p></div>`);
+    body.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = () => openHtml(`/payroll/runs/${b.dataset.ps}/payslips/${id}`)));
+  } else if (tab === 'documents') {
+    put(`<div class="panel tw"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Documents</h2>${admin ? '<button class="btn sm pri" id="pDoc2">Upload document</button>' : ''}</div>
+      <table style="margin-top:8px"><thead><tr><th>Document</th><th>Number</th><th>Issued</th><th>Expiry</th><th>Status</th><th></th></tr></thead><tbody>
+      ${d.documents.map((x) => `<tr><td>${esc(DOC_LABEL[x.docType] || x.docType)}</td><td class="mono">${val(x.number)}</td><td class="mono">${fmtDate(x.issueDate) || '—'}</td><td class="mono">${fmtDate(x.expiryDate)}</td><td>${pill(x.daysLeft < 0 ? 'p-bad' : x.daysLeft <= 30 ? 'p-warn' : 'p-ok', x.daysLeft < 0 ? `${-x.daysLeft} days overdue` : `${x.daysLeft} days`)}</td>
+        <td style="white-space:nowrap">${x.hasFile ? `<button class="btn sm" data-f="${x._id}">View file</button>` : '<span class="lbl">No file</span>'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No documents yet.</td></tr>'}
+      </tbody></table></div>`);
+    body.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => openFile(`/documents/${b.dataset.f}/file`)));
+    const u2 = $('#pDoc2'); if (u2) u2.onclick = () => uploadDoc(id, reload);
+  } else if (tab === 'requests') {
+    put(`<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Requests</h2>${admin ? '<button class="btn sm" id="pLetter2">Issue letter</button>' : ''}</div>
+      <div class="list" style="margin-top:6px">${d.requests.map((x) => `<div class="row"><div class="grow">${esc(KIND_LABEL[x.kind] || x.kind)}${x.letterType ? ` · ${esc(LETTER_LABEL[x.letterType] || x.letterType)}` : ''}<div style="font-size:12px;color:var(--muted)">${esc(x.reference || '')} · ${fmtDate(x.createdAt)}${x.details ? ` · ${esc(x.details)}` : ''}</div></div>${statusPill(x.status)}</div>`).join('') || '<div class="empty">No requests yet.</div>'}</div>
+      ${d.requests.some((x) => ['open', 'in_progress'].includes(x.status)) ? '<button class="btn sm" id="goReq" style="margin-top:12px">Open in the request centre</button>' : ''}</div>`);
+    const g = $('#goReq'); if (g) g.onclick = () => go('requests');
+    const l3 = $('#pLetter2'); if (l3) l3.onclick = () => issueLetter(id);
+  } else if (tab === 'tag') {
+    const { default: qrcode } = await import('./vendor/qrcode.mjs');
+    const q = qrcode(0, 'M'); q.addData(d.tagToken); q.make();
+    put(`<div class="idcard">
+      <div class="idcard-top"><span class="mark">W</span><div><b>${esc(d.establishment?.name || '')}</b><small>EMPLOYEE TAG · بطاقة الموظف</small></div></div>
+      <div class="idcard-body"><div class="idcard-av">${esc(ini(e.fullName))}</div><div style="min-width:0"><div class="idcard-name">${esc(e.fullName)}</div>${e.fullNameAr ? `<div dir="rtl" style="color:var(--soft);text-align:start">${esc(e.fullNameAr)}</div>` : ''}<div style="color:var(--muted);font-size:14px;margin-top:4px">${esc(e.jobTitle || '')} · ${esc(e.department || '')}</div></div></div>
+      <div class="idcard-qr">${q.createSvgTag({ cellSize: 5, margin: 2, scalable: true, alt: 'Employee tag QR code' })}</div>
+      <div class="idcard-foot"><div><span class="lbl">Employee no.</span><b class="num">${esc(e.employeeNo)}</b></div><div><span class="lbl">Joined</span><b class="num">${fmtDate(e.joinDate)}</b></div><div><span class="lbl">Nationality</span><b>${esc(e.nationality || '')}</b></div></div>
+      <div class="powered" style="border:0;padding:0"><span>POWERED BY</span><img src="devx-logo-dark.png" alt="DevX Technologies"></div></div>
+      <p class="note" style="max-width:400px">This is the same signed tag the employee sees in their app.</p>`);
+  } else {
+    put(`<div class="panel"><h2>Activity</h2><div class="list">${d.activity.map((a) => `<div class="row"><span class="sev" style="background:${a.actorType === 'agent' ? 'var(--accent)' : 'var(--line-2)'}"></span><div class="grow"><span class="mono" style="font-size:13px">${esc(a.action)}</span>${a.after && typeof a.after === 'object' ? `<div style="font-size:12px;color:var(--muted)">${esc(Object.keys(a.after).slice(0, 6).join(', '))}</div>` : ''}</div><span class="lbl">${new Date(a.at).toLocaleString('en-GB')}</span></div>`).join('') || '<div class="empty">No recorded activity.</div>'}</div></div>`);
+  }
+
+  const ed = $('#pEdit'); if (ed) ed.onclick = () => editEmployee(id, d, reload);
+  const pd = $('#pDoc'); if (pd) pd.onclick = () => uploadDoc(id, reload);
+  const pl = $('#pLetter'); if (pl) pl.onclick = () => issueLetter(id);
+  const lv = $('#pLeave'); if (lv) lv.onclick = () => addLeave(id, e, reload);
+}
+
+function editEmployee(id, d, done) {
+  const e = d.employee, c = e.compensation || {};
+  const opt = (v, cur2) => `<option value="${esc(v)}" ${String(cur2) === String(v) ? 'selected' : ''}>${esc(v)}</option>`;
+  const contacts = (e.emergencyContacts || []).concat([{}, {}]).slice(0, 2);
+  sheetForm(`Edit ${e.fullName}`, `
+    <div class="form-sec">Personal</div><div class="form">
+      <div class="field"><label class="lbl" for="f_fullName">Full name</label><input id="f_fullName" value="${esc(e.fullName)}" required></div>
+      <div class="field"><label class="lbl" for="f_fullNameAr">Arabic name</label><input id="f_fullNameAr" dir="rtl" value="${esc(e.fullNameAr || '')}"></div>
+      <div class="field"><label class="lbl" for="f_email">Email</label><input id="f_email" type="email" value="${esc(e.email || '')}"></div>
+      <div class="field"><label class="lbl" for="f_phone">Phone</label><input id="f_phone" value="${esc(e.phone || '')}" placeholder="+971 5x xxx xxxx"></div>
+      <div class="field"><label class="lbl" for="f_nationality">Nationality</label><input id="f_nationality" value="${esc(e.nationality || '')}"></div>
+      <div class="field"><label class="lbl" for="f_dateOfBirth">Date of birth</label><input id="f_dateOfBirth" type="date" value="${dateIn(e.dateOfBirth)}"></div>
+      <div class="field"><label class="lbl" for="f_gender">Gender</label><select id="f_gender"><option value="">—</option><option value="M" ${e.gender === 'M' ? 'selected' : ''}>Male</option><option value="F" ${e.gender === 'F' ? 'selected' : ''}>Female</option></select></div>
+      <div class="field"><label class="lbl" for="f_emiratesIdLast4">Emirates ID (last 4)</label><input id="f_emiratesIdLast4" inputmode="numeric" maxlength="4" value="${esc(e.emiratesIdLast4 || '')}"></div>
+      <label class="chkline"><input type="checkbox" id="f_isUaeNational" ${e.isUaeNational ? 'checked' : ''}> UAE national</label></div>
+    <div class="form-sec">Job</div><div class="form">
+      <div class="field"><label class="lbl" for="f_jobTitle">Job title</label><input id="f_jobTitle" value="${esc(e.jobTitle || '')}"></div>
+      <div class="field"><label class="lbl" for="f_department">Team</label><input id="f_department" value="${esc(e.department || '')}"></div>
+      <div class="field"><label class="lbl" for="f_establishmentId">Establishment</label><select id="f_establishmentId">${ESTS.map((x) => `<option value="${x._id}" ${String(x._id) === String(e.establishmentId) ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
+      <div class="field"><label class="lbl" for="f_contractType">Contract</label><select id="f_contractType">${['full-time', 'part-time', 'temporary', 'flexible'].map((v) => opt(v, e.contractType)).join('')}</select></div>
+      <div class="field"><label class="lbl" for="f_status">Status</label><select id="f_status">${['onboarding', 'active', 'notice', 'exited'].map((v) => opt(v, e.status)).join('')}</select></div>
+      <div class="field"><label class="lbl" for="f_mohreSkillLevel">MOHRE skill level</label><select id="f_mohreSkillLevel"><option value="">—</option>${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((v) => opt(v, e.mohreSkillLevel)).join('')}</select></div>
+      <div class="field"><label class="lbl" for="f_joinDate">Joined</label><input id="f_joinDate" type="date" value="${dateIn(e.joinDate)}" required></div>
+      <div class="field"><label class="lbl" for="f_probationEndDate">Probation ends</label><input id="f_probationEndDate" type="date" value="${dateIn(e.probationEndDate)}"></div>
+      <div class="field"><label class="lbl" for="f_exitDate">Exit date</label><input id="f_exitDate" type="date" value="${dateIn(e.exitDate)}"></div>
+      <div class="field"><label class="lbl" for="f_labourCardNo">Labour card no. (14 digits)</label><input id="f_labourCardNo" inputmode="numeric" maxlength="14" placeholder="${e.labourCardLast4 ? `•••• ${esc(e.labourCardLast4)} (leave blank to keep)` : ''}"></div></div>
+    <div class="form-sec">Pay &amp; bank</div><div class="form">
+      <div class="field"><label class="lbl" for="f_basic">Basic (AED)</label><input id="f_basic" inputmode="decimal" value="${((c.basicFils || 0) / 100).toFixed(2)}"></div>
+      <div class="field"><label class="lbl" for="f_housing">Housing (AED)</label><input id="f_housing" inputmode="decimal" value="${((c.housingFils || 0) / 100).toFixed(2)}"></div>
+      <div class="field"><label class="lbl" for="f_transport">Transport (AED)</label><input id="f_transport" inputmode="decimal" value="${((c.transportFils || 0) / 100).toFixed(2)}"></div>
+      <div class="field"><label class="lbl" for="f_bankName">Bank</label><input id="f_bankName" value="${esc(e.bank?.bankName || '')}"></div>
+      <div class="field"><label class="lbl" for="f_iban">New IBAN</label><input id="f_iban" placeholder="${esc(e.bank?.ibanMasked || 'AE… (23 characters)')} (leave blank to keep)"></div>
+      <div class="field"><label class="lbl" for="f_routingCode">Bank routing code</label><input id="f_routingCode" inputmode="numeric" maxlength="9" placeholder="9 digits (leave blank to keep)"></div>
+      <label class="chkline"><input type="checkbox" id="f_paidViaWps" ${e.paidViaWps !== false ? 'checked' : ''}> Paid via WPS</label>
+      <label class="chkline"><input type="checkbox" id="f_pensionRegistered" ${e.pensionRegistered ? 'checked' : ''}> Pension (GPSSA) registered</label></div>
+    <div class="form-sec">Emergency contacts</div>${contacts.map((x, i) => `<div class="form three"><div class="field"><label class="lbl" for="f_ec${i}n">Name</label><input id="f_ec${i}n" value="${esc(x.name || '')}"></div><div class="field"><label class="lbl" for="f_ec${i}r">Relation</label><input id="f_ec${i}r" value="${esc(x.relation || '')}"></div><div class="field"><label class="lbl" for="f_ec${i}p">Phone</label><input id="f_ec${i}p" value="${esc(x.phone || '')}"></div></div>`).join('')}
+    <p class="note">Salary changes keep the previous package in the salary history. Every change is recorded in the audit log.</p>`,
+  async (sh) => {
+    const g = (k) => sh.querySelector(`#f_${k}`);
+    const body = {};
+    for (const k of ['fullName', 'fullNameAr', 'email', 'phone', 'nationality', 'jobTitle', 'department', 'establishmentId', 'contractType', 'status', 'joinDate', 'bankName', 'emiratesIdLast4']) body[k] = g(k).value.trim();
+    for (const k of ['dateOfBirth', 'probationEndDate', 'exitDate']) body[k] = g(k).value || null;
+    body.gender = g('gender').value || null;
+    body.mohreSkillLevel = g('mohreSkillLevel').value ? Number(g('mohreSkillLevel').value) : null;
+    for (const k of ['isUaeNational', 'paidViaWps', 'pensionRegistered']) body[k] = g(k).checked;
+    for (const k of ['basic', 'housing', 'transport']) body[k] = g(k).value.replace(/,/g, '') || '0';
+    for (const k of ['iban', 'routingCode', 'labourCardNo']) if (g(k).value.trim()) body[k] = g(k).value.trim();
+    body.emergencyContacts = [0, 1].map((i) => ({ name: g(`ec${i}n`).value.trim(), relation: g(`ec${i}r`).value.trim(), phone: g(`ec${i}p`).value.trim() })).filter((x) => x.name);
+    const r = await api(`/employees/${id}`, { method: 'PATCH', body });
+    toast(r.changed.length ? `Saved: ${r.changed.length} change(s)` : 'No changes');
+    done();
+  });
+}
+
+function uploadDoc(id, done) {
+  const sh = sheetForm('Upload document', `<div class="form">
+    <div class="field" style="grid-column:1/-1"><label class="lbl" for="u_file">File (PDF, JPG, PNG, WEBP · up to 8 MB)</label><input id="u_file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div>
+    <div class="field"><label class="lbl" for="u_type">Document type</label><select id="u_type">${Object.entries(DOC_LABEL).filter(([k]) => !['trade_licence', 'establishment_card'].includes(k)).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+    <div class="field"><label class="lbl" for="u_no">Document number</label><input id="u_no"></div>
+    <div class="field"><label class="lbl" for="u_issue">Issue date</label><input id="u_issue" type="date"></div>
+    <div class="field"><label class="lbl" for="u_exp">Expiry date</label><input id="u_exp" type="date" required></div></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn sm" id="u_ocr">Read with AI</button><span id="u_msg" class="lbl">Fills the fields from the file for you to check.</span></div>`,
+  async (s) => {
+    const f = s.querySelector('#u_file').files[0];
+    if (f && f.size > 8 * 1024 * 1024) throw new Error('That file is larger than 8 MB.');
+    await api('/documents', { method: 'POST', body: { ownerType: 'employee', employeeId: id, docType: s.querySelector('#u_type').value, number: s.querySelector('#u_no').value || undefined, issueDate: s.querySelector('#u_issue').value || undefined, expiryDate: s.querySelector('#u_exp').value, ...(f ? { fileBase64: await fileToBase64(f), contentType: f.type, fileName: f.name } : {}) } });
+    toast('Document saved'); done();
+  }, 'Save document');
+  sh.querySelector('#u_ocr').onclick = async () => {
+    const f = sh.querySelector('#u_file').files[0]; if (!f) return toast('Choose a file first');
+    sh.querySelector('#u_msg').textContent = 'Reading the document…';
+    try {
+      const r = await api('/documents/ocr', { method: 'POST', body: { fileBase64: await fileToBase64(f), contentType: f.type } });
+      if (!r.available) { sh.querySelector('#u_msg').textContent = 'AI reading is not set up. Fill the fields by hand.'; return; }
+      const x = r.fields || {};
+      if (x.docType) sh.querySelector('#u_type').value = x.docType; if (x.number) sh.querySelector('#u_no').value = x.number;
+      if (x.issueDate) sh.querySelector('#u_issue').value = x.issueDate; if (x.expiryDate) sh.querySelector('#u_exp').value = x.expiryDate;
+      sh.querySelector('#u_msg').textContent = 'Filled from the document. Check before saving.';
+    } catch (err) { sh.querySelector('#u_msg').textContent = err.message; }
+  };
+}
+
+function issueLetter(id) {
+  sheetForm('Issue letter', `<div class="form">
+    <div class="field"><label class="lbl" for="l_type">Letter</label><select id="l_type">${Object.entries(LETTER_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+    <div class="field"><label class="lbl" for="l_lang">Language</label><select id="l_lang"><option value="dual">English + Arabic</option><option value="en">English</option><option value="ar">Arabic</option></select></div>
+    <div class="field" style="grid-column:1/-1"><label class="lbl" for="l_to">Addressed to</label><input id="l_to" placeholder="e.g. Emirates NBD"></div>
+    <div class="field" style="grid-column:1/-1"><label class="lbl" for="l_purpose">Purpose (optional)</label><input id="l_purpose" placeholder="e.g. personal loan application"></div></div>`,
+  async (s) => { await openHtml('/letters', { method: 'POST', body: { employeeId: id, type: s.querySelector('#l_type').value, lang: s.querySelector('#l_lang').value, addressee: s.querySelector('#l_to').value || undefined, purpose: s.querySelector('#l_purpose').value || undefined } }); toast('Letter issued'); }, 'Issue letter');
+}
+
+function addLeave(id, e, done) {
+  const sh = sheetForm(`Add leave for ${e.fullName.split(' ')[0]}`, `<div class="form">
+    <div class="field" style="grid-column:1/-1"><label class="lbl" for="v_type">Leave type</label><select id="v_type">${['annual', 'sick', 'parental', 'maternity', 'hajj', 'unpaid', 'other'].map((x) => `<option value="${x}">${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></div>
+    <div class="field"><label class="lbl" for="v_s">Start date</label><input id="v_s" type="date" required></div><div class="field"><label class="lbl" for="v_e">End date</label><input id="v_e" type="date" required></div>
+    <div class="field" style="grid-column:1/-1"><label class="lbl" for="v_r">Reason</label><input id="v_r"></div></div><div id="v_prev"></div>`,
+  async (s) => { const r = await api('/leave', { method: 'POST', body: { employeeId: id, type: s.querySelector('#v_type').value, startDate: s.querySelector('#v_s').value, endDate: s.querySelector('#v_e').value, reason: s.querySelector('#v_r').value || undefined } }); toast(`Leave added (pending approval)${r.warnings?.length ? `: ${r.warnings[0]}` : ''}`); done(); }, 'Add leave');
+  const prev = async () => { const s0 = sh.querySelector('#v_s').value, e0 = sh.querySelector('#v_e').value; if (!s0 || !e0) return; try { showLeavePreview(sh.querySelector('#v_prev'), await api('/leave', { method: 'POST', body: { employeeId: id, type: sh.querySelector('#v_type').value, startDate: s0, endDate: e0, preview: true } })); } catch {} };
+  ['#v_type', '#v_s', '#v_e'].forEach((q) => sh.querySelector(q).addEventListener('change', prev));
+}
+
+views.emp = async () => (EMP_OPEN ? employeeProfile(EMP_OPEN) : employeeDirectory());
 
 window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (token && mods().includes(m) && m !== cur) { cur = m; shell(); } });
 startBackground();
