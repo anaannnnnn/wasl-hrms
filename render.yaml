@@ -23,3 +23,17 @@ services:
         value: 8h
       - key: SERVE_WEB
         value: "true"
+      - key: JOBS_ENABLED
+        value: "true"
+      - key: STORAGE_DRIVER
+        value: local # switch to s3 and add S3_* keys for Linode Object Storage
+      - key: ANTHROPIC_API_KEY
+        sync: false # optional: enables document OCR and the AI agent
+      - key: RESEND_API_KEY
+        sync: false # optional: email notifications
+      - key: MAIL_FROM
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false # optional: WhatsApp notifications
+      - key: WHATSAPP_PHONE_ID
+        sync: false

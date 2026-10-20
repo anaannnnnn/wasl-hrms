@@ -4,7 +4,7 @@ import { filsToPlain } from './money.js';
 
 const DAY = 86400000;
 
-export function calculateGratuity({ basicMonthlyFils, joinDate, lastWorkingDate, unpaidLeaveDays = 0, jurisdiction = 'UAE-MAINLAND', scheme }) {
+export function calculateGratuity({ basicMonthlyFils, totalMonthlyFils, joinDate, lastWorkingDate, unpaidLeaveDays = 0, jurisdiction = 'UAE-MAINLAND', scheme, capBasis }) {
   const pack = getRulePack(jurisdiction, lastWorkingDate);
   const trace = [`Rule pack ${pack.id} v${pack.version} (${pack.status})`];
 
@@ -34,10 +34,12 @@ export function calculateGratuity({ basicMonthlyFils, joinDate, lastWorkingDate,
   trace.push(`First 5 yrs: ${g.daysPerYearFirst5} x ${y1.toFixed(4)} x daily`);
   if (y2 > 0) trace.push(`After 5 yrs: ${g.daysPerYearAfter5} x ${y2.toFixed(4)} x daily`);
 
-  const cap = basicMonthlyFils * g.capMonthsOfWage;
+  const basis = capBasis || g.capBasis || 'basic';
+  const capWage = basis === 'total' && totalMonthlyFils ? totalMonthlyFils : basicMonthlyFils;
+  const cap = capWage * g.capMonthsOfWage;
   const capped = amount > cap;
   amount = Math.min(amount, cap);
-  trace.push(`Cap ${g.capMonthsOfWage} months = ${filsToPlain(cap)} ${capped ? '(applied)' : '(not reached)'}`);
+  trace.push(`Cap ${g.capMonthsOfWage} months of ${basis === 'total' && totalMonthlyFils ? 'total' : 'basic'} wage = ${filsToPlain(cap)} ${capped ? '(applied)' : '(not reached)'}`);
 
   return { amountFils: amount, serviceDays, years, dailyFils, capped, trace, rulePack: `${pack.id}@${pack.version}` };
 }

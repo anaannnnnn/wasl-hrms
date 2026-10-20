@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollRun, PayrollInput, WpsSifBatch, AuditLog, AgentRun } from '../models/index.js';
-import { authenticate, requireRole, signToken, audit, ah } from '../middleware/auth.js';
+import { authenticate, requireRole, restrictEmployees, isStaff, signToken, audit, ah } from '../middleware/auth.js';
 import { runAsSystem } from '../lib/tenantContext.js';
 import { isValidUaeIban, maskIban } from '../lib/iban.js';
 import { calculateLine, detectAnomalies } from '../lib/payroll.js';
@@ -13,6 +13,8 @@ import { assessEmiratisation, nafisScenario } from '../lib/emiratisation.js';
 import { getRulePack } from '../lib/rules.js';
 import { toFils } from '../lib/money.js';
 import { propose, execute } from '../lib/agent.js';
+import { evaluateRequest, leaveDeductionDays } from '../lib/leave.js';
+import { Tenant } from '../models/index.js';
 
 const r = Router();
 const DAY = 86400000;
@@ -23,10 +25,11 @@ r.post('/auth/login', ah(async (req, res) => {
   const { email, password } = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(req.body);
     const user = await runAsSystem(() => User.findOne({ email: email.toLowerCase(), active: true }).select('+passwordHash').exec());
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect.' });
-  res.json({ token: signToken(user), user: { name: user.name, email: user.email, roles: user.roles } });
+  res.json({ token: signToken(user), user: { name: user.name, email: user.email, roles: user.roles, employeeId: user.employeeId } });
 }));
 
 r.use(authenticate);
+r.use(restrictEmployees);
 
 r.get('/me', ah(async (req, res) => res.json(req.user)));
 
@@ -107,12 +110,21 @@ r.get('/leave', ah(async (req, res) => {
 }));
 
 r.post('/leave', ah(async (req, res) => {
-  const b = z.object({ employeeId: z.string(), type: z.enum(['annual', 'sick', 'maternity', 'parental', 'hajj', 'unpaid', 'other']), startDate: z.string(), endDate: z.string(), reason: z.string().optional() }).parse(req.body);
-  const days = Math.round((Date.parse(b.endDate) - Date.parse(b.startDate)) / DAY) + 1;
-  if (days < 1) return res.status(400).json({ error: 'End date must be on or after start date.' });
-  const lr = await LeaveRequest.create({ ...b, days });
-  await audit(req, 'leave.create', 'LeaveRequest', lr._id, null, b);
-  res.status(201).json(lr);
+  const b = z.object({ employeeId: z.string().optional(), type: z.enum(['annual', 'sick', 'maternity', 'parental', 'hajj', 'unpaid', 'other']), startDate: z.string(), endDate: z.string(), reason: z.string().optional(), childBirthDate: z.string().optional(), certificateAttached: z.boolean().optional(), preview: z.boolean().optional() }).parse(req.body);
+  // Employees can only request leave for themselves
+  const selfOnly = !req.user.roles.some((r) => ['owner', 'hr_admin', 'manager'].includes(r));
+  const employeeId = selfOnly ? req.user.employeeId : (b.employeeId || req.user.employeeId);
+  if (!employeeId) return res.status(400).json({ error: 'Choose an employee.' });
+  const employee = await Employee.findById(employeeId).lean();
+  if (!employee) return res.status(404).json({ error: 'Employee not found' });
+  const est = await Establishment.findById(employee.establishmentId).lean();
+  const existing = await LeaveRequest.find({ employeeId }).lean();
+  const ev = evaluateRequest({ employee, request: b, existing, rulePackId: est?.rulePackId });
+  if (b.preview) return res.json(ev);
+  if (!ev.ok) return res.status(400).json({ error: ev.errors.join(' '), ...ev });
+  const lr = await LeaveRequest.create({ employeeId, type: b.type, startDate: b.startDate, endDate: b.endDate, reason: b.reason, days: ev.days, ...ev.split, childBirthDate: b.childBirthDate, certificateAttached: b.certificateAttached, warnings: ev.warnings, source: req.body.source === 'mobile' ? 'mobile' : 'web' });
+  await audit(req, 'leave.create', 'LeaveRequest', lr._id, null, { type: b.type, days: ev.days, split: ev.split });
+  res.status(201).json({ ...lr.toObject(), warnings: ev.warnings, balances: ev.balances });
 }));
 
 r.post('/leave/:id/decision', requireRole('hr_admin', 'manager'), ah(async (req, res) => {
@@ -132,9 +144,17 @@ async function computeRun(establishment, period) {
   const pack = getRulePack(establishment.rulePackId, `${period}-01`);
   const emps = await Employee.find({ establishmentId: establishment._id, status: { $in: ['active', 'notice'] } }).select('+bank.iban').lean();
   const inputs = await PayrollInput.find({ period, employeeId: { $in: emps.map((e) => e._id) } }).lean();
-  const prev = await PayrollRun.findOne({ establishmentId: establishment._id, period: prevPeriod(period) }).lean();
+  const prev = await PayrollRun.findOne({ establishmentId: establishment._id, period: prevPeriod(period), type: 'regular' }).lean();
+  // Approved unpaid / half-pay leave flows into payroll automatically
+  const [py, pm] = period.split('-').map(Number);
+  const pStart = new Date(Date.UTC(py, pm - 1, 1)), pEnd = new Date(Date.UTC(py, pm, 0));
+  const leaves = await LeaveRequest.find({ employeeId: { $in: emps.map((e) => e._id) }, status: 'approved', startDate: { $lte: pEnd }, endDate: { $gte: pStart } }).lean();
   const lines = emps.map((e) => {
-    const line = calculateLine(e, inputs.find((i) => String(i.employeeId) === String(e._id)), { jurisdiction: establishment.rulePackId, onDate: `${period}-01` });
+    const inp = { ...(inputs.find((i) => String(i.employeeId) === String(e._id)) || {}) };
+    const leaveDays = leaveDeductionDays(leaves.filter((l) => String(l.employeeId) === String(e._id)), pStart, pEnd);
+    inp.unpaidLeaveDays = (inp.unpaidLeaveDays || 0) + leaveDays;
+    const line = calculateLine(e, inp, { jurisdiction: establishment.rulePackId, onDate: `${period}-01` });
+    if (leaveDays) line.flags.push({ code: 'LEAVE_DEDUCTION', severity: 'info', msg: `${leaveDays} day(s) of unpaid/half-pay leave from approved requests` });
     const p = prev?.lines.find((l) => String(l.employeeId) === String(e._id));
     line.flags.push(...detectAnomalies(line, p, e, pack));
     if (!isValidUaeIban(e.bank?.iban)) line.flags.push({ code: 'IBAN_INVALID', severity: 'block', msg: 'Invalid IBAN: salary held from WPS file' });
@@ -143,7 +163,7 @@ async function computeRun(establishment, period) {
     return line;
   });
   const sum = (k, f = () => true) => lines.filter(f).reduce((a, l) => a + l[k], 0);
-  const inputsHash = createHash('sha256').update(JSON.stringify({ emps: emps.map((e) => [e._id, e.compensation, e.bank?.iban]), inputs })).digest('hex');
+  const inputsHash = createHash('sha256').update(JSON.stringify({ emps: emps.map((e) => [e._id, e.compensation, e.bank?.iban]), inputs, leaves: leaves.map((l) => [l._id, l.unpaidDays, l.halfDays]) })).digest('hex');
   return { lines, totals: { grossFils: sum('grossFils'), netFils: sum('netFils'), heldFils: sum('netFils', (l) => l.held) }, rulePack: `${pack.id}@${pack.version}`, inputsHash };
 }
 
@@ -151,17 +171,17 @@ r.post('/payroll/runs', requireRole('payroll_maker', 'hr_admin'), ah(async (req,
   const { establishmentId, period } = z.object({ establishmentId: z.string(), period: z.string().regex(/^\d{4}-\d{2}$/) }).parse(req.body);
   const est = await Establishment.findById(establishmentId);
   if (!est) return res.status(404).json({ error: 'Establishment not found' });
-  const existing = await PayrollRun.findOne({ establishmentId, period });
+  const existing = await PayrollRun.findOne({ establishmentId, period, type: 'regular' });
   if (existing?.locked) return res.status(409).json({ error: 'This payroll is approved and locked. Use an off-cycle run for corrections.' });
   const calc = await computeRun(est, period);
-  const run = existing || new PayrollRun({ establishmentId, period });
+  const run = existing || new PayrollRun({ establishmentId, period, type: 'regular', runNo: 0 });
   Object.assign(run, calc, { status: 'draft', makerId: req.user.id });
   await run.save();
   await audit(req, 'payroll.compute', 'PayrollRun', run._id, null, { period, totals: run.totals });
   res.json(run);
 }));
 
-r.get('/payroll/runs', ah(async (req, res) => res.json(await PayrollRun.find().select('-lines').sort({ period: -1 }).lean())));
+r.get('/payroll/runs', ah(async (req, res) => res.json(await PayrollRun.find(req.query.type ? { type: req.query.type } : {}).select('-lines').sort({ period: -1, runNo: 1 }).lean())));
 r.get('/payroll/runs/:id', ah(async (req, res) => res.json(await PayrollRun.findById(req.params.id).lean())));
 
 async function buildPreflight(run) {
@@ -171,7 +191,7 @@ async function buildPreflight(run) {
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const rows = run.lines.map((l) => {
     const e = emps.find((x) => String(x._id) === String(l.employeeId));
-    return { name: e.fullName, labourCardNo: e.labourCardNo, routingCode: e.bank?.routingCode, iban: e.bank?.iban, periodStart: `${run.period}-01`, periodEnd: `${run.period}-${last}`, days: last, fixedFils: l.fixedFils, variableFils: l.variableFils, leaveDays: l.unpaidLeaveDays };
+    return { name: e.fullName, labourCardNo: e.labourCardNo, routingCode: e.bank?.routingCode, iban: e.bank?.iban, periodStart: `${run.period}-01`, periodEnd: `${run.period}-${last}`, days: last, fixedFils: l.fixedFils, variableFils: l.variableFils, leaveDays: Math.ceil(l.unpaidLeaveDays || 0) };
   });
   const pf = preflight({ establishment: { mohreId: est.mohreId, agentRoutingCode: est.wps?.agentRoutingCode }, salaryMonth: run.period, createdAt: new Date(), rows });
   const warnings = run.lines.flatMap((l) => l.flags.filter((f) => f.severity !== 'block').map((f) => ({ id: f.code, status: 'warn', label: f.msg, detail: l.employeeName })));
@@ -200,8 +220,13 @@ r.post('/payroll/runs/:id/approve', requireRole('payroll_checker'), ah(async (re
   if (run.status !== 'pending_approval') return res.status(400).json({ error: 'Run is not waiting for approval.' });
   if (String(run.makerId) === req.user.id) return res.status(403).json({ error: 'Maker and checker must be different people.' });
   const est = await Establishment.findById(run.establishmentId);
-  const fresh = await computeRun(est, run.period);
-  if (fresh.inputsHash !== run.inputsHash) return res.status(409).json({ error: 'Inputs changed since this run was computed. Recompute before approving.' });
+  if (run.type === 'regular') {
+    const fresh = await computeRun(est, run.period);
+    if (fresh.inputsHash !== run.inputsHash) return res.status(409).json({ error: 'Inputs changed since this run was computed. Recompute before approving.' });
+  }
+  if (run.type === 'final' && run.settlement?.employeeId) {
+    await Employee.updateOne({ _id: run.settlement.employeeId }, { status: 'exited', exitDate: new Date(run.settlement.lastWorkingDate) });
+  }
   Object.assign(run, { status: 'approved', checkerId: req.user.id, approvedAt: new Date(), locked: true });
   await run.save();
   await audit(req, 'payroll.approve', 'PayrollRun', run._id, { status: 'pending_approval' }, { status: 'approved' });
@@ -237,7 +262,10 @@ r.post('/compliance/gratuity', ah(async (req, res) => {
   const emp = await Employee.findById(b.employeeId).lean();
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
   const est = await Establishment.findById(emp.establishmentId).lean();
-  res.json(calculateGratuity({ basicMonthlyFils: emp.compensation.basicFils, joinDate: emp.joinDate, lastWorkingDate: b.lastWorkingDate, unpaidLeaveDays: b.unpaidLeaveDays, jurisdiction: est.rulePackId, scheme: b.scheme }));
+  const tenant = await runAsSystem(() => Tenant.findById(req.user.tenantId).lean());
+  const c = emp.compensation;
+  const totalMonthlyFils = c.basicFils + c.housingFils + c.transportFils + (c.allowances || []).reduce((a, x) => a + x.amountFils, 0);
+  res.json(calculateGratuity({ basicMonthlyFils: c.basicFils, totalMonthlyFils, joinDate: emp.joinDate, lastWorkingDate: b.lastWorkingDate, unpaidLeaveDays: b.unpaidLeaveDays, jurisdiction: est.rulePackId, scheme: b.scheme, capBasis: tenant?.settings?.gratuityCapBasis }));
 }));
 
 // ---------------- Dashboard ----------------
@@ -247,7 +275,7 @@ r.get('/dashboard', ah(async (req, res) => {
     Employee.countDocuments({ status: 'active', isUaeNational: true }),
     ComplianceDocument.find({ expiryDate: { $lte: new Date(Date.now() + 30 * DAY) } }).populate('employeeId', 'fullName').populate('establishmentId', 'name').sort({ expiryDate: 1 }).lean(),
     LeaveRequest.countDocuments({ status: 'pending' }),
-    PayrollRun.findOne().sort({ period: -1 }).lean(),
+    PayrollRun.findOne({ type: { $in: ['regular', null] } }).sort({ period: -1 }).lean(),
     (async () => { const ests = await Establishment.find().lean(); let ex = 0; const items = []; for (const est of ests) { const a = assessEmiratisation({ employees: await Employee.find({ establishmentId: est._id }).lean(), establishment: est }); if (a.applicable) { ex += a.monthlyExposureFils; items.push(a); } } return { exposureFils: ex, items }; })(),
   ]);
   const actions = [];
@@ -276,6 +304,10 @@ r.post('/agent/:id/execute', ah(async (req, res) => {
   const run = await AgentRun.findById(req.params.id);
   if (!run || run.status !== 'proposed') return res.status(400).json({ error: 'This proposal was already handled or has expired.' });
   if (String(run.userId) !== req.user.id) return res.status(403).json({ error: 'Only the person who issued the command can approve it.' });
+  if (!isStaff(req.user)) {
+    if (run.intent === 'hire') return res.status(403).json({ error: 'Only HR can hire.' });
+    if (run.proposal?.params?.employeeId && String(run.proposal.params.employeeId) !== String(req.user.employeeId)) return res.status(403).json({ error: 'You can only make requests for yourself.' });
+  }
   try {
     const result = await execute(run.proposal, req);
     Object.assign(run, { status: 'executed', result });

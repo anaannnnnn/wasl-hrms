@@ -4,3 +4,5 @@ server/.env
 nginx/certs/
 *.log
 .DS_Store
+storage/
+server/storage/

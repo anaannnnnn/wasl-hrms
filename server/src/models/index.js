@@ -10,7 +10,11 @@ export const Tenant = model('Tenant', new Schema({
   name: { type: String, required: true },
   plan: { type: String, enum: ['starter', 'growth', 'enterprise'], default: 'starter' },
   defaultLanguage: { type: String, enum: ['en', 'ar'], default: 'en' },
-  settings: { payrollCutoffDay: { type: Number, default: 25 }, gratuityDailyDivisor: { type: Number, default: 365 } },
+  settings: {
+    payrollCutoffDay: { type: Number, default: 25 }, gratuityDailyDivisor: { type: Number, default: 365 },
+    gratuityCapBasis: { type: String, enum: ['total', 'basic'], default: 'total' },
+    checklist: { backupsConfigured: Boolean, legalReviewDone: Boolean, bankFormatVerified: Boolean, staffTrained: Boolean },
+  },
 }, { timestamps: true }));
 
 // ---------- Users ----------
@@ -85,6 +89,7 @@ const empSchema = new Schema({
   emiratesIdLast4: String,
   dependents: [{ name: String, relation: String, dateOfBirth: Date }],
   emergencyContacts: [{ name: String, relation: String, phone: String }],
+  leaveCarryForward: { type: Number, default: 0 },
   custom: { type: Schema.Types.Mixed, default: {} },
 }, { timestamps: true });
 empSchema.plugin(tenantPlugin);
@@ -103,6 +108,7 @@ const docSchema = new Schema({
   issueDate: Date,
   expiryDate: { type: Date, required: true },
   storageKey: String, // Linode Object Storage key; served via short-lived presigned URL
+  fileName: String, contentType: String, size: Number, sha256: String, uploadedBy: Id,
   ocr: { type: Schema.Types.Mixed },
   alertsSent: [{ daysBefore: Number, sentAt: Date }],
   renewalCase: { status: { type: String, enum: ['none', 'open', 'in_progress', 'done'], default: 'none' }, ownerUserId: Id, steps: [{ name: String, done: Boolean, at: Date }] },
@@ -123,6 +129,9 @@ const leaveSchema = new Schema({
   decidedBy: { type: Id, ref: 'User' },
   decidedAt: Date,
   source: { type: String, enum: ['web', 'mobile', 'whatsapp', 'agent'], default: 'web' },
+  // pay split decided by the leave engine at request time
+  fullDays: Number, halfDays: Number, unpaidDays: Number,
+  childBirthDate: Date, certificateAttached: Boolean, warnings: [String],
 }, { timestamps: true });
 leaveSchema.plugin(tenantPlugin);
 leaveSchema.index({ tenantId: 1, employeeId: 1, startDate: 1 });
@@ -132,6 +141,10 @@ export const LeaveRequest = model('LeaveRequest', leaveSchema);
 const runSchema = new Schema({
   establishmentId: { type: Id, ref: 'Establishment', required: true },
   period: { type: String, required: true, match: /^\d{4}-\d{2}$/ },
+  type: { type: String, enum: ['regular', 'offcycle', 'final'], default: 'regular' },
+  runNo: { type: Number, default: 0 }, // 0 for regular; increments for off-cycle/final runs in the same period
+  title: String,
+  settlement: Schema.Types.Mixed, // final settlement breakdown + trace
   status: { type: String, enum: ['draft', 'preflight_failed', 'pending_approval', 'approved', 'exported', 'paid'], default: 'draft' },
   lines: [{
     employeeId: Id, employeeName: String, fixedFils: Number, variableFils: Number, grossFils: Number,
@@ -147,7 +160,7 @@ const runSchema = new Schema({
   locked: { type: Boolean, default: false },
 }, { timestamps: true });
 runSchema.plugin(tenantPlugin);
-runSchema.index({ tenantId: 1, establishmentId: 1, period: 1 }, { unique: true });
+runSchema.index({ tenantId: 1, establishmentId: 1, period: 1, type: 1, runNo: 1 }, { unique: true });
 export const PayrollRun = model('PayrollRun', runSchema);
 
 const payInputSchema = new Schema({
@@ -194,3 +207,30 @@ auditSchema.index({ tenantId: 1, createdAt: -1 });
 // append-only
 auditSchema.pre(['updateOne', 'updateMany', 'findOneAndUpdate', 'deleteOne', 'deleteMany'], function () { throw new Error('Audit log is immutable'); });
 export const AuditLog = model('AuditLog', auditSchema);
+
+// ---------- In-app notifications ----------
+const notifSchema = new Schema({
+  audience: { type: String, enum: ['hr', 'manager', 'employee'], default: 'hr' },
+  userId: Id, employeeId: { type: Id, ref: 'Employee' },
+  title: String, body: String, link: String,
+  severity: { type: String, enum: ['info', 'warn', 'bad'], default: 'info' },
+  dedupeKey: String, readBy: [Id], deliveries: [String],
+}, { timestamps: true });
+notifSchema.plugin(tenantPlugin);
+notifSchema.index({ tenantId: 1, dedupeKey: 1 }, { unique: true, partialFilterExpression: { dedupeKey: { $type: 'string' } } });
+notifSchema.index({ tenantId: 1, createdAt: -1 });
+export const Notification = model('Notification', notifSchema);
+
+// ---------- Employee request centre (letters, data changes, salary queries, ...) ----------
+const reqSchema = new Schema({
+  employeeId: { type: Id, ref: 'Employee', required: true },
+  kind: { type: String, enum: ['letter', 'bank_change', 'personal_data', 'salary_query', 'document_renewal', 'it_facilities', 'other'], required: true },
+  letterType: String, addressee: String, purpose: String, lang: { type: String, default: 'dual' },
+  details: String, payload: Schema.Types.Mixed,
+  status: { type: String, enum: ['open', 'in_progress', 'done', 'rejected'], default: 'open' },
+  reference: String, comments: [{ by: Id, text: String, at: Date }],
+  slaDueAt: Date, handledBy: Id, closedAt: Date,
+}, { timestamps: true });
+reqSchema.plugin(tenantPlugin);
+reqSchema.index({ tenantId: 1, employeeId: 1, createdAt: -1 });
+export const ServiceRequest = model('ServiceRequest', reqSchema);

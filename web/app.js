@@ -1,4 +1,5 @@
 // Wasl HRMS web client. Plain ES modules, no build step.
+import { translateTree } from './i18n.js';
 const API = '/api';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -13,9 +14,9 @@ let L = localStorage.getItem('wasl_lang') || 'en';
 let cur = location.hash.slice(1) || 'dash';
 
 const T = {
-  en: { dash: 'Command Center', emp: 'Employees', pay: 'Payroll & WPS', emi: 'Emiratisation', docs: 'Document Radar', eosb: 'Gratuity (EOSB)', leave: 'Leave', audit: 'Audit log', run: 'Run', lang: 'العربية', signout: 'Sign out',
+  en: { dash: 'Command Center', emp: 'Employees', pay: 'Payroll & WPS', emi: 'Emiratisation', docs: 'Document Radar', eosb: 'Gratuity (EOSB)', leave: 'Leave', audit: 'Audit log', requests: 'Requests', setup: 'Setup', me: 'My Workspace', run: 'Run', lang: 'العربية', signout: 'Sign out',
     ph: 'Ask or instruct… e.g. Hire Omar Al-Maktoum as Senior Engineer, AED 22,000, start Nov 1' },
-  ar: { dash: 'مركز القيادة', emp: 'الموظفون', pay: 'الرواتب ونظام حماية الأجور', emi: 'التوطين', docs: 'رادار الوثائق', eosb: 'مكافأة نهاية الخدمة', leave: 'الإجازات', audit: 'سجل التدقيق', run: 'تنفيذ', lang: 'English', signout: 'تسجيل الخروج',
+  ar: { dash: 'مركز القيادة', emp: 'الموظفون', pay: 'الرواتب ونظام حماية الأجور', emi: 'التوطين', docs: 'رادار الوثائق', eosb: 'مكافأة نهاية الخدمة', leave: 'الإجازات', audit: 'سجل التدقيق', requests: 'الطلبات', setup: 'الإعداد', me: 'مساحتي', run: 'تنفيذ', lang: 'English', signout: 'تسجيل الخروج',
     ph: 'اطلب أو وجّه… مثال: تعيين عمر المكتوم مهندساً أول براتب 22,000 درهم' },
 };
 const t = (k) => T[L][k] || T.en[k];
@@ -88,7 +89,31 @@ function startBackground() {
 }
 
 // ---------------- Shell ----------------
-const MODS = ['dash', 'emp', 'pay', 'emi', 'docs', 'eosb', 'leave', 'audit'];
+const STAFF_MODS = ['dash', 'emp', 'pay', 'emi', 'docs', 'eosb', 'leave', 'requests', 'setup', 'audit'];
+const isStaffUser = () => has('hr_admin', 'payroll_maker', 'payroll_checker', 'manager');
+const mods = () => (isStaffUser() ? STAFF_MODS.filter((m) => !['audit', 'setup', 'requests'].includes(m) || has('hr_admin')) : ['me']);
+let ESTS = []; let EST = localStorage.getItem('wasl_est') || '';
+const currentEst = () => ESTS.find((e) => e._id === EST) || ESTS.find((e) => e.jurisdiction === 'MAINLAND') || ESTS[0];
+// Open an authenticated HTML document (payslip, letter) in a new tab
+async function openHtml(path, opts = {}) {
+  const w = window.open('', '_blank');
+  try {
+    const res = await fetch(API + path, { method: opts.method || 'GET', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Failed (${res.status})`); }
+    const url = URL.createObjectURL(new Blob([await res.text()], { type: 'text/html' }));
+    if (w) w.location = url; else location.href = url;
+  } catch (e) { if (w) w.close(); fail(e); }
+}
+async function openFile(path) {
+  const w = window.open('', '_blank');
+  try {
+    const res = await fetch(API + path, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Failed (${res.status})`); }
+    if ((res.headers.get('content-type') || '').includes('application/json')) { const j = await res.json(); if (w) w.location = j.url; return; }
+    const url = URL.createObjectURL(await res.blob()); if (w) w.location = url;
+  } catch (e) { if (w) w.close(); fail(e); }
+}
+const fileToBase64 = (file) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = bad; r.readAsDataURL(file); });
 const ICONS = {
   dash: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   emp: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M22 19v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8',
@@ -98,22 +123,29 @@ const ICONS = {
   eosb: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
   leave: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4',
   audit: 'M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01',
+  requests: 'M4 5h16v11H9l-5 4z',
+  setup: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
+  me: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
 };
 const icon = (d, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
 let collapsed = localStorage.getItem('wasl_rail') === '1';
 function shell() {
   document.documentElement.dir = L === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = L;
+  if (!mods().includes(cur)) cur = mods()[0];
   $('#root').innerHTML = `<div class="app ${collapsed ? 'collapsed' : ''}"><nav class="rail" aria-label="Main">
     <div class="brand"><span class="mark">W</span><div class="fade"><b>Wasl</b><span class="by">POWERED BY <img src="devx-logo-light.png" alt="DevX Technologies"></span></div></div>
     <div class="sect fade">WORKSPACE</div>
-    ${MODS.filter((m) => m !== 'audit' || has('hr_admin')).map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m])}<span class="fade">${t(m)}</span></button>`).join('')}
+    ${mods().map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m])}<span class="fade">${t(m)}</span></button>`).join('')}
     <div class="rail-foot">
       <div class="who"><span class="av">${esc(ini(me.name))}</span><div class="fade" style="min-width:0"><b>${esc(me.name)}</b><span>${esc(me.roles.join(', '))}</span></div></div>
       <button class="btn sm fade" id="so">${t('signout')}</button>
       <button class="collapse" id="col" aria-label="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg><span class="fade">Collapse</span></button>
     </div>
   </nav><main>
-    <div class="top"><form class="cmd" id="cf"><span class="k">AI ⌘</span><input id="cmd" autocomplete="off" placeholder="${esc(t('ph'))}"><button class="btn pri sm" type="submit">${t('run')}</button></form>
+    <div class="top"><form class="cmd" id="cf"><span class="k">AI ⌘</span><input id="cmd" autocomplete="off" placeholder="${esc(isStaffUser() ? t('ph') : 'Ask… e.g. I need a salary certificate for Emirates NBD')}"><button class="btn pri sm" type="submit">${t('run')}</button></form>
+    ${isStaffUser() ? '<label class="sr" for="estSel">Entity</label><select id="estSel" class="btn" style="max-width:240px" title="Entity"></select>' : ''}
+    <div style="position:relative"><button class="btn" id="bell" aria-label="Notifications" title="Notifications">${icon('M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0', 18)}<span id="bellCt" class="ct" hidden></span></button>
+      <div id="bellPanel" class="panel" hidden style="position:absolute;inset-inline-end:0;top:calc(100% + 8px);width:min(380px,90vw);z-index:30;max-height:60vh;overflow:auto;padding:14px 16px"></div></div>
     <button class="btn" id="lb">${t('lang')}</button></div>
     <div class="chips" id="chips" style="margin-bottom:18px"></div>
     <div id="agent"></div><section id="view"><div class="loading">Loading…</div></section>
@@ -130,10 +162,34 @@ function shell() {
   ['Hire Omar Al-Maktoum as Senior Frontend Engineer, AED 22,000, start Nov 1', 'Ahmed Khan wants 3 days annual leave from 26 Oct', 'Salary certificate for Priya Menon addressed to Emirates NBD'].forEach((c) => {
     const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.textContent = c; b.onclick = () => { $('#cmd').value = c; agent(c); }; $('#chips').appendChild(b);
   });
+  if (!isStaffUser()) $('#chips').hidden = true;
+  translateTree($('#root'), L);
+  loadBell();
+  if (isStaffUser()) {
+    api('/establishments').then((list) => {
+      ESTS = list; const sel = $('#estSel'); if (!sel) return;
+      sel.innerHTML = list.map((e) => `<option value="${e._id}" ${currentEst()?._id === e._id ? 'selected' : ''}>${esc(e.name)}${e.freeZone ? ` · ${esc(e.freeZone)}` : ' · Mainland'}</option>`).join('');
+      sel.onchange = () => { EST = sel.value; localStorage.setItem('wasl_est', EST); views[cur]().catch(fail); };
+    }).catch(() => {});
+  }
   views[cur]().catch(fail);
 }
+async function loadBell() {
+  try {
+    const list = await api('/notifications');
+    const unread = list.filter((n) => !n.read).length;
+    const ct = $('#bellCt'); if (ct) { ct.hidden = !unread; ct.textContent = unread > 9 ? '9+' : unread; }
+    const panel = $('#bellPanel');
+    panel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-family:var(--f-display);text-transform:uppercase;letter-spacing:.04em">Notifications</b><button class="btn sm" id="readAll">Mark all read</button></div>
+      ${list.length ? list.map((n) => `<div class="row" style="padding:10px 0"><span class="sev" style="background:var(--${sevVar(n.severity)})"></span><div class="grow"><div style="font-size:14px;${n.read ? 'color:var(--muted)' : ''}">${esc(n.title)}</div><div style="font-size:12px;color:var(--muted)">${esc(n.body || '')} · ${new Date(n.createdAt).toLocaleDateString('en-GB')}</div></div>${n.link ? `<button class="btn sm" data-link="${esc(n.link.slice(1))}">Open</button>` : ''}</div>`).join('') : '<div class="empty">No notifications yet.</div>'}`;
+    translateTree(panel, L);
+    $('#bell').onclick = () => { panel.hidden = !panel.hidden; };
+    $('#readAll').onclick = async () => { await api('/notifications/read-all', { method: 'POST' }); loadBell(); };
+    panel.querySelectorAll('[data-link]').forEach((b) => (b.onclick = () => { panel.hidden = true; go(b.dataset.link); }));
+  } catch { /* bell is optional */ }
+}
 function go(m) { cur = m; location.hash = m; shell(); }
-const V = (html) => ($('#view').innerHTML = html);
+const V = (html) => { $('#view').innerHTML = html; translateTree($('#view'), L); };
 const sevVar = (s) => ({ bad: 'bad', warn: 'warn', info: 'accent' }[s] || 'accent');
 const pill = (cls, txt) => `<span class="pill ${cls}">${esc(txt)}</span>`;
 
@@ -231,9 +287,10 @@ const views = {
 
   async pay() {
     const [ests, runs, emps] = await Promise.all([api('/establishments'), api('/payroll/runs'), api('/employees')]);
-    const est = ests.find((e) => e.jurisdiction === 'MAINLAND') || ests[0];
+    const est = (EST && ests.find((e) => e._id === EST)) || ests.find((e) => e.jurisdiction === 'MAINLAND') || ests[0];
     const now = new Date(); const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    let run = runs.find((r) => r.period === period && String(r.establishmentId) === String(est._id));
+    let run = runs.find((r) => r.period === period && String(r.establishmentId) === String(est._id) && (r.type || 'regular') === 'regular');
+    const extraRuns = runs.filter((r) => String(r.establishmentId) === String(est._id) && r.type && r.type !== 'regular');
     if (!run) {
       V(`<div class="eyebrow">${esc(est.name)}</div><h1>Payroll <em>studio</em></h1>
       <div class="panel"><p>No payroll computed for ${period} yet. Computing pulls salaries, overtime, unpaid leave and loans, then runs every WPS check.</p><button class="btn pri" id="comp">Compute ${period} payroll</button></div>`);
@@ -242,6 +299,7 @@ const views = {
     run = await api(`/payroll/runs/${run._id}`);
     const pf = await api(`/payroll/runs/${run._id}/preflight`);
     const deptOf = Object.fromEntries(emps.map((e) => [String(e._id), e.department || 'Other']));
+    const released = ['approved', 'exported', 'paid'].includes(run.status);
     const stepsAll = ['draft', 'pending_approval', 'approved', 'exported'];
     const at = run.status === 'preflight_failed' ? 0 : stepsAll.indexOf(run.status);
     const fixedT = run.lines.reduce((a, l) => a + l.fixedFils, 0), varT = run.lines.reduce((a, l) => a + l.variableFils, 0), dedT = run.lines.reduce((a, l) => a + (l.deductionsFils || 0), 0);
@@ -269,12 +327,30 @@ const views = {
     </div>
     <div class="grid g3" style="margin-top:16px">
       <div class="panel span2"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0" id="regTitle">Register · all teams</h2><button class="btn sm" id="regAll" hidden>Show all teams</button></div>
-        <div class="tw" style="margin-top:10px"><table><thead><tr><th>Employee</th><th>Team</th><th class="r">Fixed</th><th class="r">Variable</th><th class="r">Net</th><th>Status</th></tr></thead><tbody id="reg"></tbody></table></div></div>
+        <div class="tw" style="margin-top:10px"><table><thead><tr><th>Employee</th><th>Team</th><th class="r">Fixed</th><th class="r">Variable</th><th class="r">Net</th><th>Status</th>${released ? '<th>Payslip</th>' : ''}</tr></thead><tbody id="reg"></tbody></table></div></div>
       <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">WPS pre-flight</h2>${pf.blocking ? pill('p-bad', `${pf.blocking} blocking`) : pill('p-ok', 'No blocking errors')}</div>
         <div class="meter" style="margin:12px 0 4px"><i id="pfBar" style="width:0%"></i></div>
         <div id="pfList"></div>
         <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap" id="acts"><button class="btn" id="rerun">Re-run checks</button></div></div>
-    </div><div id="sifOut"></div>`);
+    </div><div id="sifOut"></div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="panel"><h2>Payslips</h2>
+        ${released ? `<p style="margin:0 0 12px;color:var(--muted)">Bilingual payslips are ready. Releasing notifies every employee in My Workspace, and by email or WhatsApp where configured.</p><button class="btn pri" id="relSlips">Release payslips</button>` : '<p style="margin:0;color:var(--muted)">Payslips become available once this payroll is approved by a checker.</p>'}
+        <h2 style="margin-top:22px">Off-cycle payment</h2>
+        <form id="ocForm" class="form"><div class="field" style="grid-column:1/-1"><label class="lbl" for="ocTitle">Title</label><input id="ocTitle" placeholder="e.g. Eid bonus, missed overtime" required></div>
+          <div class="field"><label class="lbl" for="ocEmp">Employee</label><select id="ocEmp">${emps.filter((e) => String(e.establishmentId) === String(est._id) && e.status !== 'exited').map((e) => `<option value="${e._id}">${esc(e.fullName)}</option>`).join('')}</select></div>
+          <div class="field"><label class="lbl" for="ocAmt">Amount (AED)</label><input id="ocAmt" type="number" min="1" step="0.01" required></div>
+          <div style="grid-column:1/-1"><button class="btn" type="submit">Create off-cycle run</button></div></form></div>
+      <div class="panel"><h2>Off-cycle &amp; final settlement runs</h2>
+        ${extraRuns.length ? `<div class="list">${extraRuns.map((x) => `<div class="row"><div class="grow"><b style="font-weight:600">${esc(x.title || x.type)}</b><div style="font-size:12px;color:var(--muted)">${esc(x.period)} · ${esc(x.type)} #${x.runNo} · AED ${AED(x.totals?.netFils)}</div></div>${pill(x.status === 'draft' ? 'p-n' : x.status === 'pending_approval' ? 'p-warn' : 'p-ok', x.status.replace('_', ' '))}
+          ${x.status === 'draft' && has('payroll_maker', 'hr_admin') ? `<button class="btn sm" data-sub="${x._id}">Submit</button>` : ''}${x.status === 'pending_approval' && has('payroll_checker') ? `<button class="btn sm pri" data-appr="${x._id}">Approve</button>` : ''}${['approved', 'exported'].includes(x.status) ? `<button class="btn sm" data-sif="${x._id}">SIF</button>` : ''}</div>`).join('')}</div>` : '<div class="empty">None yet. Final settlements are created from the Gratuity screen.</div>'}</div>
+    </div>`);
+
+    if ($('#relSlips')) $('#relSlips').onclick = async () => { try { const r2 = await api(`/payroll/runs/${run._id}/payslips/send`, { method: 'POST' }); toast(`Released ${r2.released} payslips${r2.channels.email || r2.channels.whatsapp ? ' (with email/WhatsApp)' : ''}`); } catch (e) { fail(e); } };
+    $('#ocForm').onsubmit = async (e) => { e.preventDefault(); try { await api('/payroll/offcycle', { method: 'POST', body: { establishmentId: est._id, period, title: $('#ocTitle').value, items: [{ employeeId: $('#ocEmp').value, amount: $('#ocAmt').value }] } }); toast('Off-cycle run created as draft'); views.pay(); } catch (err) { fail(err); } };
+    document.querySelectorAll('[data-sub]').forEach((b) => (b.onclick = async () => { try { const r2 = await api(`/payroll/runs/${b.dataset.sub}/submit`, { method: 'POST' }); toast(r2.blocking ? `Blocked: ${r2.blocking} error(s)` : 'Sent to checker'); views.pay(); } catch (e) { fail(e); } }));
+    document.querySelectorAll('[data-appr]').forEach((b) => (b.onclick = async () => { try { await api(`/payroll/runs/${b.dataset.appr}/approve`, { method: 'POST' }); toast('Approved'); views.pay(); } catch (e) { fail(e); } }));
+    document.querySelectorAll('[data-sif]').forEach((b) => (b.onclick = async () => { try { const r2 = await api(`/payroll/runs/${b.dataset.sif}/sif`, { method: 'POST' }); const url = URL.createObjectURL(new Blob([r2.content], { type: 'text/plain' })); const a = document.createElement('a'); a.href = url; a.download = r2.filename; a.click(); } catch (e) { fail(e); } }));
 
     // Team columns + register filter
     const teams = {}; run.lines.forEach((l) => { const d = deptOf[String(l.employeeId)] || 'Other'; teams[d] = (teams[d] || 0) + l.netFils; });
@@ -282,7 +358,8 @@ const views = {
     let team = null;
     const drawReg = () => {
       const rows = run.lines.filter((l) => !team || deptOf[String(l.employeeId)] === team);
-      $('#reg').innerHTML = rows.map((l) => `<tr><td>${esc(l.employeeName)}</td><td style="color:var(--muted)">${esc(deptOf[String(l.employeeId)] || '')}</td><td class="r num">${AED(l.fixedFils)}</td><td class="r num">${AED(l.variableFils)}</td><td class="r num">${AED(l.netFils)}</td><td>${l.held ? pill('p-bad', 'Held') : l.flags.some((f) => f.severity === 'warn') ? pill('p-warn', 'Review') : l.unpaidLeaveDays ? pill('p-warn', `${l.unpaidLeaveDays}d unpaid`) : pill('p-ok', 'Ready')}</td></tr>`).join('');
+      $('#reg').innerHTML = rows.map((l) => `<tr><td>${esc(l.employeeName)}</td><td style="color:var(--muted)">${esc(deptOf[String(l.employeeId)] || '')}</td><td class="r num">${AED(l.fixedFils)}</td><td class="r num">${AED(l.variableFils)}</td><td class="r num">${AED(l.netFils)}</td><td>${l.held ? pill('p-bad', 'Held') : l.flags.some((f) => f.severity === 'warn') ? pill('p-warn', 'Review') : l.unpaidLeaveDays ? pill('p-warn', `${l.unpaidLeaveDays}d unpaid`) : pill('p-ok', 'Ready')}</td>${released ? `<td><button class="btn sm" data-slip="${l.employeeId}">View</button></td>` : ''}</tr>`).join('');
+      document.querySelectorAll('[data-slip]').forEach((b) => (b.onclick = () => openHtml(`/payroll/runs/${run._id}/payslips/${b.dataset.slip}`)));
       $('#regTitle').textContent = `Register · ${team || 'all teams'}`; $('#regAll').hidden = !team;
       document.querySelectorAll('#cols button').forEach((b) => { const on = b.dataset.t === team; b.querySelector('i').style.background = team ? (on ? 'var(--accent)' : '#4a2f26') : '#a84a1f'; });
     };
@@ -298,6 +375,7 @@ const views = {
     const reveal = () => {
       clearInterval(timer); let n = 0; const list = pf.checks;
       const paint = () => {
+        if (!$('#pfBar')) { clearInterval(timer); return; } // user navigated away
         $('#pfBar').style.width = `${(n / list.length) * 100}%`;
         $('#pfList').innerHTML = list.map((c, i) => i < n
           ? `<div class="check"><span class="ic ${c.status === 'pass' ? 'ok' : c.status === 'fail' ? 'bad' : 'warn'}">${c.status === 'pass' ? '✓' : c.status === 'fail' ? '!' : '~'}</span><div style="min-width:0"><div>${esc(c.label)}</div><div class="mono" style="font-size:12px;color:var(--muted);overflow-wrap:anywhere">${esc(c.detail)}</div></div></div>`
@@ -333,7 +411,10 @@ const views = {
         <div class="big" style="margin-top:8px">${a.qualifyingCount} <span style="color:var(--muted);font-size:24px">/ ${a.required}</span></div>
         <div class="meter" style="margin:12px 0"><i style="width:${Math.min(100, (a.qualifyingCount / a.required) * 100)}%"></i></div>
         <div class="list">${a.qualifying.map((q) => `<div class="row"><span class="av">${esc(ini(q.name))}</span><div class="grow">${esc(q.name)}<div style="font-size:12px;color:var(--muted)">AED ${AED0(q.wageFils)} / month</div></div>${pill('p-ok', 'Counts')}</div>`).join('')}
-        ${a.notQualifying.map((q) => `<div class="row"><span class="av">${esc(ini(q.name))}</span><div class="grow">${esc(q.name)}<div style="font-size:12px;color:var(--bad)">${esc(q.reasons.join(' · '))}</div></div>${pill('p-bad', 'Not counted')}</div>`).join('')}</div></div>
+        ${a.notQualifying.map((q) => `<div class="row"><span class="av">${esc(ini(q.name))}</span><div class="grow">${esc(q.name)}<div style="font-size:12px;color:var(--bad)">${esc(q.reasons.join(' · '))}</div></div>${pill('p-bad', 'Not counted')}</div>`).join('')}
+        ${(a.inGrace || []).map((q) => `<div class="row"><span class="av">${esc(ini(q.name))}</span><div class="grow">${esc(q.name)}<div style="font-size:12px;color:var(--muted)">Left ${fmtDate(q.exitDate)} · slot protected until ${fmtDate(q.graceUntil)}</div></div>${pill('p-warn', 'Grace period')}</div>`).join('')}</div>
+        ${a.checkpoint ? `<p class="note">Next checkpoint ${esc(a.checkpoint.date)}: ${a.checkpoint.pct}% of skilled roles.</p>` : ''}
+        ${(a.alerts || []).map((al) => `<div class="row" style="padding:8px 0"><span class="sev" style="background:var(--${sevVar(al.severity)})"></span><div class="grow" style="font-size:13px">${esc(al.msg)}</div></div>`).join('')}</div>
       <div class="panel"><h2>Hire vs. pay the fine</h2>
         <div class="field"><label class="lbl" for="pH" style="display:flex;justify-content:space-between">New UAE national hires <span class="num" id="pHv" style="color:var(--accent-hi)"></span></label><input id="pH" type="range" min="0" max="4" step="1" value="${a.gap}" style="accent-color:#ff6a2b"></div>
         <div class="field" style="margin-top:12px"><label class="lbl" for="pW" style="display:flex;justify-content:space-between">Monthly wage per hire <span class="num" id="pWv" style="color:var(--accent-hi)"></span></label><input id="pW" type="range" min="6000" max="15000" step="500" value="6500" style="accent-color:#ff6a2b"></div>
@@ -459,6 +540,248 @@ const views = {
   },
 };
 
+
+// ================= Phase 1 screens: request centre, setup, employee workspace, uploads, settlements =================
+const LETTER_LABEL = { salary_certificate: 'Salary certificate', bank_transfer: 'Salary transfer letter', noc: 'No objection certificate', experience: 'Experience certificate' };
+const KIND_LABEL = { letter: 'Letter', bank_change: 'Bank details change', personal_data: 'Personal data change', salary_query: 'Salary query', document_renewal: 'Document renewal', it_facilities: 'IT / facilities', other: 'Other' };
+const DOC_LABEL = { passport: 'Passport', residence_visa: 'Residence visa', emirates_id: 'Emirates ID', labour_card: 'Labour card', driving_licence: 'Driving licence', health_insurance: 'Health insurance', trade_licence: 'Trade licence', establishment_card: 'Establishment card' };
+const after = (html) => { const v = $('#view'); const div = document.createElement('div'); div.innerHTML = html; v.appendChild(div); translateTree(div, L); return div; };
+const empOptions = (list) => list.map((e) => `<option value="${e._id}">${esc(e.fullName)} · ${esc(e.employeeNo)}</option>`).join('');
+const statusPill = (s) => pill(s === 'done' || s === 'approved' ? 'p-ok' : s === 'rejected' ? 'p-bad' : s === 'in_progress' || s === 'pending' ? 'p-warn' : 'p-n', s.replace('_', ' '));
+
+Object.assign(views, {
+  // ---------- Request centre (HR) ----------
+  async requests() {
+    const [list, emps] = await Promise.all([api('/requests'), api('/employees?status=active')]);
+    const open = list.filter((x) => ['open', 'in_progress'].includes(x.status));
+    V(`<div class="eyebrow">${open.length} OPEN · SLA TRACKED</div><h1>Request <em>centre</em></h1>
+    <p class="sub">Letters, bank changes and salary queries from employees. Approving a letter issues it with a reference number and digital stamp; approving a bank change updates the IBAN.</p>
+    <div class="grid g3"><div class="panel span2"><div class="list">
+      ${list.length ? list.map((x) => `<div class="row"><span class="av">${esc(ini(x.employeeId?.fullName || '?'))}</span><div class="grow"><b style="font-weight:600">${esc(x.employeeId?.fullName || '')}</b> · ${esc(KIND_LABEL[x.kind] || x.kind)}${x.letterType ? ` · ${esc(LETTER_LABEL[x.letterType])}` : ''}
+        <div style="font-size:12px;color:var(--muted)">${esc(x.reference || '')}${x.addressee ? ` · to ${esc(x.addressee)}` : ''}${x.details ? ` · ${esc(x.details)}` : ''}${x.slaDueAt && ['open', 'in_progress'].includes(x.status) ? ` · due ${fmtDate(x.slaDueAt)}${new Date(x.slaDueAt) < new Date() ? ' (overdue)' : ''}` : ''}</div></div>
+        ${statusPill(x.status)}
+        ${['open', 'in_progress'].includes(x.status) ? `${x.status === 'open' ? `<button class="btn sm" data-d="${x._id}" data-v="in_progress">In progress</button>` : ''}<button class="btn sm" data-d="${x._id}" data-v="rejected">Reject</button><button class="btn sm pri" data-d="${x._id}" data-v="done">${x.kind === 'letter' ? 'Issue letter' : 'Mark done'}</button>` : ''}
+        ${x.kind === 'letter' && x.status === 'done' ? `<button class="btn sm" data-letter='${esc(JSON.stringify({ employeeId: x.employeeId?._id, type: x.letterType, addressee: x.addressee, purpose: x.purpose, lang: x.lang }))}'>Open letter</button>` : ''}</div>`).join('') : '<div class="empty">No requests yet.</div>'}
+    </div></div>
+    <div class="panel"><h2>Issue letter</h2><form id="ltrForm" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label class="lbl" for="lEmp">Employee</label><select id="lEmp">${empOptions(emps)}</select></div>
+      <div class="field"><label class="lbl" for="lType">Letter</label><select id="lType">${Object.entries(LETTER_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+      <div class="field"><label class="lbl" for="lTo">Addressed to</label><input id="lTo" placeholder="e.g. Emirates NBD" value="To whom it may concern"></div>
+      <div class="field"><label class="lbl" for="lPurpose">Purpose (NOC only)</label><input id="lPurpose" placeholder="e.g. travelling to India"></div>
+      <div class="field"><label class="lbl" for="lLang">Language</label><select id="lLang"><option value="dual">English + Arabic</option><option value="en">English</option><option value="ar">Arabic</option></select></div>
+      <button class="btn pri" type="submit">Issue letter</button></form></div></div>`);
+    document.querySelectorAll('[data-d]').forEach((b) => (b.onclick = async () => {
+      try {
+        const x = list.find((y) => y._id === b.dataset.d);
+        await api(`/requests/${b.dataset.d}/decision`, { method: 'POST', body: { decision: b.dataset.v } });
+        toast(`Request ${b.dataset.v.replace('_', ' ')}`);
+        if (b.dataset.v === 'done' && x.kind === 'letter') openHtml('/letters', { method: 'POST', body: { employeeId: x.employeeId._id, type: x.letterType, addressee: x.addressee, purpose: x.purpose, lang: x.lang } });
+        views.requests();
+      } catch (e) { fail(e); }
+    }));
+    document.querySelectorAll('[data-letter]').forEach((b) => (b.onclick = () => openHtml('/letters', { method: 'POST', body: JSON.parse(b.dataset.letter) })));
+    $('#ltrForm').onsubmit = (e) => { e.preventDefault(); openHtml('/letters', { method: 'POST', body: { employeeId: $('#lEmp').value, type: $('#lType').value, addressee: $('#lTo').value || undefined, purpose: $('#lPurpose').value || undefined, lang: $('#lLang').value } }); };
+  },
+
+  // ---------- Setup: go-live checklist, CSV import, settings, rule registry ----------
+  async setup() {
+    const [ck, rules, settings, ests] = await Promise.all([api('/setup/checklist'), api('/rules'), api('/settings'), api('/establishments')]);
+    V(`<div class="eyebrow">${ck.done} OF ${ck.total} READY</div><h1>Go-live <em>setup</em></h1>
+    <p class="sub">Everything a new company needs before its first real payroll. Automatic checks update themselves; tick the manual ones when done.</p>
+    <div class="meter" style="margin-bottom:18px"><i style="width:${(ck.done / ck.total) * 100}%"></i></div>
+    <div class="grid g2"><div class="panel"><h2>Go-live checklist</h2>
+      ${ck.items.map((i) => `<div class="chk"><span class="ic ${i.ok ? 'ok' : 'warn'}">${i.ok ? '✓' : '!'}</span><div style="flex:1;min-width:0"><div>${esc(i.label)}</div>${i.detail ? `<div style="font-size:12px;color:var(--muted)">${esc(i.detail)}</div>` : ''}</div>
+        ${i.manual ? `<label style="display:flex;gap:6px;align-items:center;font-size:13px;white-space:nowrap"><input type="checkbox" data-ck="${i.id}" ${i.ok ? 'checked' : ''} style="accent-color:#ff6a2b;width:18px;height:18px"> Done</label>` : ''}</div>`).join('')}</div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="panel"><h2>Import employees</h2><p style="margin:0 0 12px;color:var(--muted);font-size:14px">Upload a CSV. Every row is validated (IBAN checksum, 14-digit labour card, dates, duplicates) before anything is saved.</p>
+        <div class="form"><div class="field"><label class="lbl" for="impEst">Establishment</label><select id="impEst">${ests.map((e) => `<option value="${e._id}">${esc(e.name)}</option>`).join('')}</select></div>
+        <div class="field"><label class="lbl" for="impFile">CSV file</label><input id="impFile" type="file" accept=".csv,text/csv"></div></div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn" id="impTpl">Download template</button><button class="btn" id="impCheck">Check file</button><button class="btn pri" id="impGo" disabled>Import</button></div>
+        <div id="impOut" style="margin-top:12px"></div></div>
+      <div class="panel"><h2>Settings</h2><div class="field"><label class="lbl" for="capBasis">Gratuity cap basis</label><select id="capBasis"><option value="total" ${settings.gratuityCapBasis !== 'basic' ? 'selected' : ''}>Total remuneration (PRD default)</option><option value="basic" ${settings.gratuityCapBasis === 'basic' ? 'selected' : ''}>Basic salary</option></select></div>
+        <p class="note">Gratuity is capped at 24 months of wage. Confirm the basis with UAE employment counsel.</p></div>
+    </div></div>
+    <div class="panel tw" style="margin-top:16px"><h2>Rule packs</h2><table><thead><tr><th>Profile</th><th>Version</th><th>Effective</th><th>Status</th><th>Gratuity</th><th>Annual leave</th><th>Emiratisation</th><th>Source</th></tr></thead><tbody>
+      ${rules.map((p) => `<tr><td><b style="font-weight:600">${esc(p.id)}</b></td><td class="mono">${esc(p.version)}</td><td class="mono">${esc(p.effectiveFrom)}${p.effectiveTo ? ` → ${esc(p.effectiveTo)}` : ''}</td><td>${pill(p.status === 'approved' ? 'p-ok' : 'p-warn', p.status)}</td>
+        <td>${p.gratuity?.basis === 'dews' ? 'DEWS fund' : `${p.gratuity?.daysPerYearFirst5}/${p.gratuity?.daysPerYearAfter5} days, cap ${p.gratuity?.capMonthsOfWage}m ${p.gratuity?.capBasis || 'basic'}`}</td><td>${p.leave ? `${p.leave.annualDays} ${p.leave.annualDaysUnit || 'calendar'} days` : '—'}</td><td>${p.emiratisation ? 'MOHRE quota' : 'Not applied'}</td>
+        <td style="font-size:12px;color:var(--muted);max-width:280px">${esc(p.source)}${(p.sourceUrls || []).map((u) => ` <a href="${esc(u)}" target="_blank" rel="noopener">link</a>`).join('')}</td></tr>`).join('')}</tbody></table></div>`);
+    document.querySelectorAll('[data-ck]').forEach((c) => (c.onchange = async () => { try { await api('/setup/checklist', { method: 'PATCH', body: { id: c.dataset.ck, ok: c.checked } }); views.setup(); } catch (e) { fail(e); } }));
+    $('#capBasis').onchange = async () => { try { await api('/settings', { method: 'PATCH', body: { gratuityCapBasis: $('#capBasis').value } }); toast('Saved'); } catch (e) { fail(e); } };
+    $('#impTpl').onclick = async () => { try { const res = await fetch(`${API}/import/template`, { headers: { Authorization: `Bearer ${token}` } }); const a = document.createElement('a'); a.href = URL.createObjectURL(await res.blob()); a.download = 'wasl-employee-template.csv'; a.click(); } catch (e) { fail(e); } };
+    let csv = '';
+    const run = async (dryRun) => {
+      const f = $('#impFile').files[0]; if (!f) return toast('Choose a CSV file first');
+      csv = await f.text();
+      try {
+        const r2 = await api('/import/employees', { method: 'POST', body: { csv, establishmentId: $('#impEst').value, dryRun } });
+        $('#impOut').innerHTML = r2.dryRun
+          ? `<div>${pill(r2.errors.length ? 'p-bad' : 'p-ok', r2.errors.length ? `${r2.errors.length} problem(s)` : `${r2.toCreate} ready to import`)}</div>
+             ${r2.errors.length ? `<div class="tw" style="margin-top:8px"><table><thead><tr><th>Row</th><th>Field</th><th>Problem</th></tr></thead><tbody>${r2.errors.slice(0, 50).map((x) => `<tr><td class="mono">${x.row}</td><td>${esc(x.field)}</td><td>${esc(x.msg)}</td></tr>`).join('')}</tbody></table></div>` : `<div style="font-size:13px;color:var(--muted);margin-top:8px">${r2.preview.map((p) => `${esc(p.employeeNo)} ${esc(p.fullName)}`).join(' · ')}${r2.toCreate > 5 ? ' …' : ''}</div>`}`
+          : `${pill('p-ok', `Imported ${r2.created} employees`)}`;
+        $('#impGo').disabled = !(r2.dryRun && !r2.errors.length && r2.toCreate);
+        if (!r2.dryRun) toast(`Imported ${r2.created} employees`);
+      } catch (e) { fail(e); }
+    };
+    $('#impCheck').onclick = () => run(true); $('#impGo').onclick = () => run(false);
+  },
+
+  // ---------- Employee workspace (self-service) ----------
+  async me() {
+    const tab = localStorage.getItem('wasl_metab') || 'overview';
+    const [p, bal] = await Promise.all([api('/me/profile'), api('/me/balances')]);
+    V(`<div class="eyebrow">${esc(p.establishment?.name || '')}</div><h1>Hello, <em>${esc(p.fullName.split(' ')[0])}</em></h1>
+    <div class="tabs" role="tablist">${[['overview', 'Overview'], ['payslips', 'Payslips'], ['leave', 'Leave'], ['docs', 'My documents'], ['req', 'My requests']].map(([k, v]) => `<button role="tab" data-tab="${k}" class="${tab === k ? 'on' : ''}">${v}</button>`).join('')}</div><div id="meBody"></div>`);
+    document.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { localStorage.setItem('wasl_metab', b.dataset.tab); views.me(); }));
+    const body = $('#meBody');
+    const put = (html) => { body.innerHTML = html; translateTree(body, L); };
+    if (tab === 'overview') {
+      put(`<div class="grid g4">
+        <div class="panel stat"><div class="v">${bal.annual.remaining}</div><span class="lbl">Annual leave remaining</span><div class="d">of ${bal.annual.entitlement} · ${esc(bal.annual.basis)}</div></div>
+        <div class="panel stat"><div class="v">${bal.sick.fullPayLeft}</div><span class="lbl">Full-pay sick days left</span><div class="d">${bal.sick.taken} taken this year</div></div>
+        <div class="panel stat"><div class="v num" style="font-size:40px">${esc(p.employeeNo)}</div><span class="lbl">Employee number</span><div class="d">${esc(p.jobTitle || '')}</div></div>
+        <div class="panel stat"><div class="v num" style="font-size:40px">${fmtDate(p.joinDate).slice(0, 4)}</div><span class="lbl">Joined</span><div class="d">${fmtDate(p.joinDate)}</div></div></div>
+        <div class="panel" style="margin-top:16px"><h2>My details</h2><table><tbody>
+          <tr><td style="color:var(--muted)">Department</td><td>${esc(p.department || '')}</td></tr><tr><td style="color:var(--muted)">Nationality</td><td>${esc(p.nationality || '')}</td></tr>
+          <tr><td style="color:var(--muted)">Bank</td><td>${esc(p.bank?.bankName || '')} ${esc(p.bank?.ibanMasked || '')}</td></tr><tr><td style="color:var(--muted)">Contract</td><td>${esc(p.contractType || '')}</td></tr></tbody></table>
+          <p class="note">To change your bank or personal details, send a request from My requests.</p></div>`);
+    } else if (tab === 'payslips') {
+      const list = await api('/me/payslips');
+      put(`<div class="panel"><h2>Payslips</h2>${list.length ? `<table><thead><tr><th>Period</th><th>Type</th><th class="r">Net</th><th></th></tr></thead><tbody>${list.map((x) => `<tr><td class="mono">${esc(x.period)}</td><td>${esc(x.type || 'regular')}</td><td class="r num">AED ${AED(x.netFils)}</td><td><button class="btn sm" data-ps="${x.runId}">View</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">No payslips released yet.</div>'}</div>`);
+      body.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = () => openHtml(`/me/payslips/${b.dataset.ps}`)));
+    } else if (tab === 'leave') {
+      const list = await api('/me/leave');
+      put(`<div class="grid g2"><div class="panel"><h2>Request leave</h2><form id="lvForm" class="form">
+        <div class="field" style="grid-column:1/-1"><label class="lbl" for="lvType">Leave type</label><select id="lvType">${['annual', 'sick', 'parental', 'maternity', 'hajj', 'unpaid'].map((x) => `<option value="${x}">${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></div>
+        <div class="field"><label class="lbl" for="lvS">Start date</label><input id="lvS" type="date" required></div><div class="field"><label class="lbl" for="lvE">End date</label><input id="lvE" type="date" required></div>
+        <div class="field" id="lvBirthWrap" hidden style="grid-column:1/-1"><label class="lbl" for="lvBirth">Child's date of birth</label><input id="lvBirth" type="date"></div>
+        <div class="field" style="grid-column:1/-1"><label class="lbl" for="lvR">Reason</label><input id="lvR"></div>
+        <div id="lvPrev" style="grid-column:1/-1"></div>
+        <div style="grid-column:1/-1;display:flex;gap:8px"><button class="btn" type="button" id="lvCheck">Check policy</button><button class="btn pri" type="submit">Submit</button></div></form></div>
+        <div class="panel"><h2>My leave</h2>${list.length ? `<div class="list">${list.map((x) => `<div class="row"><div class="grow">${esc(x.type)} · <span class="mono">${fmtDate(x.startDate)} → ${fmtDate(x.endDate)}</span> (${x.days}d)${x.unpaidDays ? `<div style="font-size:12px;color:var(--warn)">${x.unpaidDays} unpaid day(s)</div>` : ''}</div>${statusPill(x.status)}</div>`).join('')}</div>` : '<div class="empty">No leave yet.</div>'}</div></div>`);
+      const bodyOf = () => ({ type: $('#lvType').value, startDate: $('#lvS').value, endDate: $('#lvE').value, reason: $('#lvR').value || undefined, childBirthDate: $('#lvBirth').value || undefined });
+      $('#lvType').onchange = () => { $('#lvBirthWrap').hidden = $('#lvType').value !== 'parental'; };
+      $('#lvCheck').onclick = async () => { try { const ev = await api('/leave', { method: 'POST', body: { ...bodyOf(), preview: true } }); showLeavePreview($('#lvPrev'), ev); } catch (e) { fail(e); } };
+      $('#lvForm').onsubmit = async (e) => { e.preventDefault(); try { const r2 = await api('/leave', { method: 'POST', body: bodyOf() }); toast(`Leave requested${r2.warnings?.length ? `: ${r2.warnings[0]}` : ''}`); views.me(); } catch (err) { fail(err); } };
+    } else if (tab === 'docs') {
+      const list = await api('/me/documents');
+      put(`<div class="panel"><h2>My documents</h2>${list.length ? `<table><thead><tr><th>Document</th><th>Expiry</th><th>Expires in</th><th></th></tr></thead><tbody>${list.map((d) => `<tr><td>${esc(DOC_LABEL[d.docType] || d.docType)}</td><td class="mono">${fmtDate(d.expiryDate)}</td><td>${pill(d.daysLeft <= 14 ? 'p-bad' : d.daysLeft <= 30 ? 'p-warn' : 'p-ok', d.daysLeft < 0 ? `${-d.daysLeft} days overdue` : `${d.daysLeft} days`)}</td><td>${d.hasFile ? `<button class="btn sm" data-f="${d._id}">View</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No documents on file.</div>'}</div>`);
+      body.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => openFile(`/me/documents/${b.dataset.f}/file`)));
+    } else {
+      const list = await api('/me/requests');
+      put(`<div class="grid g2"><div class="panel"><h2>New request</h2><form id="rqForm" style="display:flex;flex-direction:column;gap:12px">
+        <div class="field"><label class="lbl" for="rqKind">Request type</label><select id="rqKind">${Object.entries(KIND_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+        <div id="rqLetter" style="display:flex;flex-direction:column;gap:12px"><div class="field"><label class="lbl" for="rqLt">Letter</label><select id="rqLt">${Object.entries(LETTER_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+          <div class="field"><label class="lbl" for="rqTo">Addressed to</label><input id="rqTo" placeholder="e.g. Emirates NBD"></div>
+          <div class="field"><label class="lbl" for="rqLang">Language</label><select id="rqLang"><option value="dual">English + Arabic</option><option value="en">English</option><option value="ar">Arabic</option></select></div></div>
+        <div class="field" id="rqIbanWrap" hidden><label class="lbl" for="rqIban">New IBAN</label><input id="rqIban" placeholder="AE.. (23 characters)"></div>
+        <div class="field"><label class="lbl" for="rqDet">Details</label><textarea id="rqDet"></textarea></div>
+        <button class="btn pri" type="submit">Send request</button></form></div>
+        <div class="panel"><h2>My requests</h2>${list.length ? `<div class="list">${list.map((x) => `<div class="row"><div class="grow">${esc(KIND_LABEL[x.kind])}${x.letterType ? ` · ${esc(LETTER_LABEL[x.letterType])}` : ''}<div style="font-size:12px;color:var(--muted)">${esc(x.reference || '')} · ${fmtDate(x.createdAt)}</div></div>${statusPill(x.status)}${x.kind === 'letter' && x.status === 'done' ? `<button class="btn sm" data-lt="${x._id}">Open letter</button>` : ''}</div>`).join('')}</div>` : '<div class="empty">No requests yet.</div>'}</div></div>`);
+      const sync = () => { const k = $('#rqKind').value; $('#rqLetter').hidden = k !== 'letter'; $('#rqIbanWrap').hidden = k !== 'bank_change'; };
+      $('#rqKind').onchange = sync; sync();
+      body.querySelectorAll('[data-lt]').forEach((b) => (b.onclick = () => openHtml(`/me/letters/${b.dataset.lt}`)));
+      $('#rqForm').onsubmit = async (e) => { e.preventDefault(); const k = $('#rqKind').value; try { await api('/me/requests', { method: 'POST', body: { kind: k, details: $('#rqDet').value || undefined, ...(k === 'letter' ? { letterType: $('#rqLt').value, addressee: $('#rqTo').value || undefined, lang: $('#rqLang').value } : {}), ...(k === 'bank_change' ? { iban: $('#rqIban').value } : {}) } }); toast('Request sent to HR'); views.me(); } catch (err) { fail(err); } };
+    }
+  },
+});
+
+function showLeavePreview(el, ev) {
+  el.innerHTML = `<div class="panel" style="padding:14px;background:var(--surface-2)">${ev.errors?.length ? `<div class="err">${ev.errors.map(esc).join('<br>')}</div>` : pill('p-ok', 'Allowed by policy')}
+    ${ev.warnings?.length ? `<div style="color:var(--warn);font-size:13px;margin-top:6px">${ev.warnings.map(esc).join('<br>')}</div>` : ''}
+    <div class="trace" style="margin-top:8px">${ev.days} day(s): <b>${ev.split?.fullDays ?? 0}</b> full pay · <b>${ev.split?.halfDays ?? 0}</b> half pay · <b>${ev.split?.unpaidDays ?? 0}</b> unpaid<br>Annual balance <b>${ev.balances?.annual?.remaining ?? '—'}</b> of ${ev.balances?.annual?.entitlement ?? '—'} · sick days taken <b>${ev.balances?.sick?.taken ?? 0}</b></div></div>`;
+  translateTree(el, L);
+}
+
+// ---------- Enhancements to existing screens ----------
+const baseDocs = views.docs, baseEosb = views.eosb, baseLeave = views.leave;
+views.docs = async () => {
+  await baseDocs();
+  if (!has('hr_admin')) return;
+  const [emps, ests] = await Promise.all([api('/employees?status=active'), api('/establishments')]);
+  const box = document.createElement('div');
+  box.className = 'panel'; box.style.marginBottom = '16px';
+  box.innerHTML = `<details><summary style="cursor:pointer;font-family:var(--f-display);font-weight:700;font-size:20px;text-transform:uppercase;letter-spacing:.03em">Upload document</summary>
+    <form id="upForm" class="form" style="margin-top:14px">
+      <div class="field"><label class="lbl" for="upOwner">Holder</label><select id="upOwner"><optgroup label="Employees">${emps.map((e) => `<option value="employee:${e._id}">${esc(e.fullName)}</option>`).join('')}</optgroup><optgroup label="Company">${ests.map((e) => `<option value="establishment:${e._id}">${esc(e.name)}</option>`).join('')}</optgroup></select></div>
+      <div class="field"><label class="lbl" for="upFile">File</label><input id="upFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div>
+      <div class="field"><label class="lbl" for="upType">Document type</label><select id="upType">${Object.entries(DOC_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+      <div class="field"><label class="lbl" for="upNo">Document number</label><input id="upNo"></div>
+      <div class="field"><label class="lbl" for="upIssue">Issue date</label><input id="upIssue" type="date"></div>
+      <div class="field"><label class="lbl" for="upExp">Expiry date</label><input id="upExp" type="date" required></div>
+      <div id="upMsg" style="grid-column:1/-1;font-size:13px;color:var(--muted)">PDF, JPG, PNG or WEBP up to 8 MB. "Read with AI" fills the fields for you to check.</div>
+      <div style="grid-column:1/-1;display:flex;gap:8px"><button class="btn" type="button" id="upOcr">Read with AI</button><button class="btn pri" type="submit">Save document</button></div></form></details>`;
+  $('#view').insertBefore(box, $('#view').children[3] || null);
+  translateTree(box, L);
+  const fileData = async () => { const f = $('#upFile').files[0]; if (!f) return null; if (f.size > 8 * 1024 * 1024) throw new Error('That file is larger than 8 MB.'); return { fileBase64: await fileToBase64(f), contentType: f.type, fileName: f.name }; };
+  $('#upOcr').onclick = async () => {
+    try {
+      const fd = await fileData(); if (!fd) return toast('Choose a file first');
+      $('#upMsg').textContent = 'Reading the document…';
+      const r2 = await api('/documents/ocr', { method: 'POST', body: fd });
+      if (!r2.available) { $('#upMsg').textContent = r2.message; return; }
+      const f = r2.fields || {};
+      if (f.docType) $('#upType').value = f.docType; if (f.number) $('#upNo').value = f.number; if (f.issueDate) $('#upIssue').value = f.issueDate; if (f.expiryDate) $('#upExp').value = f.expiryDate;
+      $('#upMsg').textContent = `Filled from the document${f.holderName ? ` (${f.holderName})` : ''}, confidence ${Math.round((f.confidence || 0) * 100)}%. Check every field before saving.`;
+    } catch (e) { $('#upMsg').textContent = ''; fail(e); }
+  };
+  $('#upForm').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const [ownerType, id] = $('#upOwner').value.split(':');
+      const fd = await fileData();
+      await api('/documents', { method: 'POST', body: { ownerType, [ownerType === 'employee' ? 'employeeId' : 'establishmentId']: id, docType: $('#upType').value, number: $('#upNo').value || undefined, issueDate: $('#upIssue').value || undefined, expiryDate: $('#upExp').value, ...(fd || {}) } });
+      toast('Document saved'); views.docs();
+    } catch (err) { fail(err); }
+  };
+  // file links in the table
+  const docs = await api('/documents/expiring?days=120');
+  document.querySelectorAll('#view table tbody tr').forEach((tr, i) => { const d = docs[i]; if (d?.storageKey) { const td = tr.lastElementChild; td.insertAdjacentHTML('beforeend', ` <button class="btn sm" data-file="${d._id}">File</button>`); } });
+  document.querySelectorAll('[data-file]').forEach((b) => (b.onclick = () => openFile(`/documents/${b.dataset.file}/file`)));
+};
+
+views.eosb = async () => {
+  await baseEosb();
+  if (!has('hr_admin', 'payroll_maker')) return;
+  after(`<div class="panel" style="margin-top:16px"><h2>Final settlement</h2><p style="margin:0 0 12px;color:var(--muted);font-size:14px">Uses the employee and last working day selected above. Adds pro-rata salary, unused annual leave, gratuity and notice pay, minus loans; creates a draft run for maker-checker approval and WPS export.</p>
+    <div class="form"><div class="field"><label class="lbl" for="fsNotice">Notice pay in lieu (days)</label><input id="fsNotice" type="number" min="0" max="90" value="0"></div>
+      <div class="field"><label class="lbl" for="fsLoan">Outstanding loan (AED)</label><input id="fsLoan" type="number" min="0" step="0.01" value="0"></div>
+      <div class="field"><label class="lbl" for="fsOther">Other deductions (AED)</label><input id="fsOther" type="number" min="0" step="0.01" value="0"></div>
+      <div class="field"><label class="lbl" for="fsReason">Reason</label><input id="fsReason" placeholder="Resignation, end of contract…"></div></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="fsPrev">Preview</button><button class="btn pri" id="fsGo" disabled>Create final settlement</button></div><div id="fsOut" style="margin-top:12px"></div></div>`);
+  const body = () => ({ employeeId: $('#eE').value, lastWorkingDate: $('#eD').value, noticePayDays: Number($('#fsNotice').value) || 0, outstandingLoan: $('#fsLoan').value || 0, otherDeductions: $('#fsOther').value || 0, reason: $('#fsReason').value || undefined });
+  $('#fsPrev').onclick = async () => {
+    try {
+      const s2 = await api('/payroll/settlements/preview', { method: 'POST', body: body() });
+      const c = s2.components;
+      $('#fsOut').innerHTML = `<div class="grid g2"><table><tbody>
+        <tr><td>Pro-rata salary</td><td class="r num">${AED(c.proRataSalaryFils)}</td></tr><tr><td>Leave encashment (${s2.unusedLeaveDays} days)</td><td class="r num">${AED(c.leaveEncashmentFils)}</td></tr>
+        <tr><td>Gratuity</td><td class="r num">${AED(c.gratuityFils)}</td></tr><tr><td>Notice pay</td><td class="r num">${AED(c.noticePayFils)}</td></tr>
+        <tr><td>Deductions</td><td class="r num">−${AED(s2.deductionsFils)}</td></tr><tr><td><b>Net settlement</b></td><td class="r num"><b style="color:var(--accent)">AED ${AED(s2.netFils)}</b></td></tr></tbody></table>
+        <div class="trace" style="font-size:12.5px">${s2.trace.map(esc).join('<br>')}</div></div>`;
+      $('#fsGo').disabled = false;
+    } catch (e) { fail(e); }
+  };
+  $('#fsGo').onclick = async () => { try { await api('/payroll/settlements', { method: 'POST', body: body() }); toast('Final settlement created as a draft run. Submit it from Payroll & WPS.'); $('#fsGo').disabled = true; } catch (e) { fail(e); } };
+};
+
+views.leave = async () => {
+  await baseLeave();
+  if (!has('hr_admin', 'manager')) return;
+  const emps = await api('/employees?status=active');
+  after(`<div class="panel" style="margin-top:16px"><h2>Request leave</h2><form id="hlForm" class="form">
+    <div class="field"><label class="lbl" for="hlEmp">Employee</label><select id="hlEmp">${empOptions(emps)}</select></div>
+    <div class="field"><label class="lbl" for="hlType">Leave type</label><select id="hlType">${['annual', 'sick', 'parental', 'maternity', 'hajj', 'unpaid'].map((x) => `<option value="${x}">${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></div>
+    <div class="field"><label class="lbl" for="hlS">Start date</label><input id="hlS" type="date" required></div><div class="field"><label class="lbl" for="hlE">End date</label><input id="hlE" type="date" required></div>
+    <div class="field" id="hlBirthWrap" hidden><label class="lbl" for="hlBirth">Child's date of birth</label><input id="hlBirth" type="date"></div>
+    <div class="field"><label class="lbl" for="hlCert"><input id="hlCert" type="checkbox" style="accent-color:#ff6a2b"> Medical certificate attached</label></div>
+    <div id="hlPrev" style="grid-column:1/-1"></div>
+    <div style="grid-column:1/-1;display:flex;gap:8px"><button class="btn" type="button" id="hlCheck">Check policy</button><button class="btn pri" type="submit">Submit</button></div></form></div>`);
+  const bodyOf = () => ({ employeeId: $('#hlEmp').value, type: $('#hlType').value, startDate: $('#hlS').value, endDate: $('#hlE').value, childBirthDate: $('#hlBirth').value || undefined, certificateAttached: $('#hlCert').checked });
+  $('#hlType').onchange = () => { $('#hlBirthWrap').hidden = $('#hlType').value !== 'parental'; };
+  $('#hlCheck').onclick = async () => { try { showLeavePreview($('#hlPrev'), await api('/leave', { method: 'POST', body: { ...bodyOf(), preview: true } })); } catch (e) { fail(e); } };
+  $('#hlForm').onsubmit = async (e) => { e.preventDefault(); try { await api('/leave', { method: 'POST', body: bodyOf() }); toast('Leave request created'); views.leave(); } catch (err) { fail(err); } };
+};
+
 async function compute(establishmentId, period) {
   try { await api('/payroll/runs', { method: 'POST', body: { establishmentId, period } }); toast('Payroll computed'); views.pay(); } catch (e) { fail(e); }
 }
@@ -485,7 +808,6 @@ async function agent(q) {
   } catch (e) { slot.innerHTML = ''; fail(e); }
 }
 
-window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (token && MODS.includes(m) && m !== cur) { cur = m; shell(); } });
-if (!MODS.includes(cur)) cur = 'dash';
+window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (token && mods().includes(m) && m !== cur) { cur = m; shell(); } });
 startBackground();
 token ? shell() : loginView();
