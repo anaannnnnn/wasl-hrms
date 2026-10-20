@@ -10,6 +10,7 @@ import api from './routes/api.js';
 import mvp from './routes/mvp.js';
 import security from './routes/security.js';
 import attendance from './routes/attendance.js';
+import employees360 from './routes/employees360.js';
 
 export function createApp() {
   const app = express();
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/api', mvp);
   app.use('/api', security);
   app.use('/api', attendance);
+  app.use('/api', employees360);
 
   if (config.serveWeb) {
     const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web');
