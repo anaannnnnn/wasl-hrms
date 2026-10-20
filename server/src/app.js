@@ -50,6 +50,8 @@ export function createApp() {
   if (config.serveWeb) {
     const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web');
     app.use(express.static(web));
+    // Friendly entry points: /employee opens the employee sign-in, /hr the HR sign-in (same single-page app)
+    app.get(['/employee', '/employee/', '/hr', '/hr/'], (req, res) => res.sendFile(path.join(web, 'index.html')));
   }
 
   app.use((err, req, res, next) => {
