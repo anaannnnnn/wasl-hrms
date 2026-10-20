@@ -104,13 +104,12 @@ let collapsed = localStorage.getItem('wasl_rail') === '1';
 function shell() {
   document.documentElement.dir = L === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = L;
   $('#root').innerHTML = `<div class="app ${collapsed ? 'collapsed' : ''}"><nav class="rail" aria-label="Main">
-    <div class="brand"><span class="mark">W</span><div class="fade"><b>Wasl</b><small>HRMS · UAE</small></div></div>
+    <div class="brand"><span class="mark">W</span><div class="fade"><b>Wasl</b><span class="by">POWERED BY <img src="devx-logo-light.png" alt="DevX Technologies"></span></div></div>
     <div class="sect fade">WORKSPACE</div>
     ${MODS.filter((m) => m !== 'audit' || has('hr_admin')).map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}" aria-label="${esc(t(m))}" title="${esc(t(m))}">${icon(ICONS[m])}<span class="fade">${t(m)}</span></button>`).join('')}
     <div class="rail-foot">
       <div class="who"><span class="av">${esc(ini(me.name))}</span><div class="fade" style="min-width:0"><b>${esc(me.name)}</b><span>${esc(me.roles.join(', '))}</span></div></div>
       <button class="btn sm fade" id="so">${t('signout')}</button>
-      <div class="powered fade"><span>POWERED BY</span><img src="devx-logo-light.png" alt="DevX Technologies"></div>
       <button class="collapse" id="col" aria-label="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg><span class="fade">Collapse</span></button>
     </div>
   </nav><main>
@@ -231,27 +230,84 @@ const views = {
   },
 
   async pay() {
-    const [ests, runs] = await Promise.all([api('/establishments'), api('/payroll/runs')]);
-    const est = ests[0];
+    const [ests, runs, emps] = await Promise.all([api('/establishments'), api('/payroll/runs'), api('/employees')]);
+    const est = ests.find((e) => e.jurisdiction === 'MAINLAND') || ests[0];
     const now = new Date(); const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     let run = runs.find((r) => r.period === period && String(r.establishmentId) === String(est._id));
-    if (!run) { V(`<h1>${t('pay')}</h1><div class="panel"><p>No payroll computed for ${period} yet.</p><button class="btn pri" id="comp">Compute ${period} payroll</button></div>`); $('#comp').onclick = () => compute(est._id, period); return; }
+    if (!run) {
+      V(`<div class="eyebrow">${esc(est.name)}</div><h1>Payroll <em>studio</em></h1>
+      <div class="panel"><p>No payroll computed for ${period} yet. Computing pulls salaries, overtime, unpaid leave and loans, then runs every WPS check.</p><button class="btn pri" id="comp">Compute ${period} payroll</button></div>`);
+      $('#comp').onclick = () => compute(est._id, period); return;
+    }
     run = await api(`/payroll/runs/${run._id}`);
     const pf = await api(`/payroll/runs/${run._id}/preflight`);
+    const deptOf = Object.fromEntries(emps.map((e) => [String(e._id), e.department || 'Other']));
     const stepsAll = ['draft', 'pending_approval', 'approved', 'exported'];
     const at = run.status === 'preflight_failed' ? 0 : stepsAll.indexOf(run.status);
-    V(`<h1>${t('pay')} · ${run.period}</h1><p class="sub">${esc(est.name)} · rule pack ${esc(run.rulePack)}. Export stays locked until pre-flight passes and a different person approves.</p>
+    const fixedT = run.lines.reduce((a, l) => a + l.fixedFils, 0), varT = run.lines.reduce((a, l) => a + l.variableFils, 0), dedT = run.lines.reduce((a, l) => a + (l.deductionsFils || 0), 0);
+    const gross = fixedT + varT + dedT || 1;
+    const C = 2 * Math.PI * 52, seg = (f) => (f / gross) * C;
+    V(`<div class="eyebrow">${esc(est.name)} · RULE PACK ${esc(run.rulePack)}</div>
+    <h1>Payroll <em>studio</em> · ${run.period}</h1><p class="sub">Export stays locked until pre-flight passes and a different person approves.</p>
     <div class="steps">${['Compute', 'Pre-flight & submit', 'Checker approval', 'SIF export'].map((s, i) => `<span class="${i < at + 1 ? 'done' : i === at + 1 ? 'on' : ''}">${s}</span>`).join('')}</div>
-    <div class="grid g2">
+    <div class="grid g3">
+      <div class="panel span2"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px"><h2 style="margin:0">Cost by team</h2><span style="font-size:13px;color:var(--muted)">Click a column to filter the register</span></div>
+        <div id="cols" style="display:flex;align-items:flex-end;gap:16px;height:220px;margin-top:18px;border-bottom:1px solid var(--line)"></div>
+        <div id="colLabels" style="display:flex;gap:16px;margin-top:8px"></div></div>
+      <div class="panel"><h2>Pay mix</h2><div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Pay mix">
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#0b2530" stroke-width="18"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#ff6a2b" stroke-width="18" stroke-dasharray="${seg(fixedT)} 999" transform="rotate(-90 70 70)"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#7fd3e6" stroke-width="18" stroke-dasharray="${seg(varT)} 999" stroke-dashoffset="${-seg(fixedT)}" transform="rotate(-90 70 70)"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#f5c542" stroke-width="18" stroke-dasharray="${seg(dedT)} 999" stroke-dashoffset="${-seg(fixedT) - seg(varT)}" transform="rotate(-90 70 70)"/>
+          <text x="70" y="66" text-anchor="middle" fill="#a9c0c8" font-size="11">NET AED</text>
+          <text x="70" y="88" text-anchor="middle" fill="#fff" font-size="22" font-weight="800" font-family="Barlow Condensed, sans-serif">${Math.round(run.totals.netFils / 100000)}k</text></svg>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+          <div><span style="display:inline-block;width:10px;height:10px;background:#ff6a2b;margin-inline-end:8px"></span>Fixed ${Math.round((fixedT / gross) * 100)}%</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#7fd3e6;margin-inline-end:8px"></span>Overtime &amp; commission ${Math.round((varT / gross) * 100)}%</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#f5c542;margin-inline-end:8px"></span>Deductions ${Math.round((dedT / gross) * 100)}%</div></div></div></div>
+    </div>
+    <div class="grid g3" style="margin-top:16px">
+      <div class="panel span2"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0" id="regTitle">Register · all teams</h2><button class="btn sm" id="regAll" hidden>Show all teams</button></div>
+        <div class="tw" style="margin-top:10px"><table><thead><tr><th>Employee</th><th>Team</th><th class="r">Fixed</th><th class="r">Variable</th><th class="r">Net</th><th>Status</th></tr></thead><tbody id="reg"></tbody></table></div></div>
       <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">WPS pre-flight</h2>${pf.blocking ? pill('p-bad', `${pf.blocking} blocking`) : pill('p-ok', 'No blocking errors')}</div>
-        <div style="margin-top:10px">${pf.checks.map((c) => `<div class="check"><span class="ic ${c.status === 'pass' ? 'ok' : c.status === 'fail' ? 'bad' : 'warn'}">${c.status === 'pass' ? '✓' : c.status === 'fail' ? '!' : '~'}</span><div style="min-width:0"><div>${esc(c.label)}</div><div class="mono" style="font-size:11.5px;color:var(--muted);overflow-wrap:anywhere">${esc(c.detail)}</div></div></div>`).join('')}</div>
-        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap" id="acts"></div>
-      </div>
-      <div class="panel"><h2>Net pay register</h2><div class="tw"><table><thead><tr><th>Employee</th><th class="r">Fixed</th><th class="r">Variable</th><th class="r">Net</th></tr></thead><tbody>
-        ${run.lines.map((l) => `<tr><td>${esc(l.employeeName)} ${l.held ? pill('p-bad', 'held') : l.flags.some((f) => f.severity === 'warn') ? pill('p-warn', 'review') : ''}</td><td class="r num">${AED(l.fixedFils)}</td><td class="r num">${AED(l.variableFils)}</td><td class="r num">${AED(l.netFils)}</td></tr>`).join('')}
-        <tr><td><b>Total (excl. held)</b></td><td></td><td></td><td class="r num"><b>${AED(run.totals.netFils - run.totals.heldFils)}</b></td></tr>
-      </tbody></table></div></div>
+        <div class="meter" style="margin:12px 0 4px"><i id="pfBar" style="width:0%"></i></div>
+        <div id="pfList"></div>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap" id="acts"><button class="btn" id="rerun">Re-run checks</button></div></div>
     </div><div id="sifOut"></div>`);
+
+    // Team columns + register filter
+    const teams = {}; run.lines.forEach((l) => { const d = deptOf[String(l.employeeId)] || 'Other'; teams[d] = (teams[d] || 0) + l.netFils; });
+    const tlist = Object.entries(teams).sort((a, b) => b[1] - a[1]); const tmax = tlist[0]?.[1] || 1;
+    let team = null;
+    const drawReg = () => {
+      const rows = run.lines.filter((l) => !team || deptOf[String(l.employeeId)] === team);
+      $('#reg').innerHTML = rows.map((l) => `<tr><td>${esc(l.employeeName)}</td><td style="color:var(--muted)">${esc(deptOf[String(l.employeeId)] || '')}</td><td class="r num">${AED(l.fixedFils)}</td><td class="r num">${AED(l.variableFils)}</td><td class="r num">${AED(l.netFils)}</td><td>${l.held ? pill('p-bad', 'Held') : l.flags.some((f) => f.severity === 'warn') ? pill('p-warn', 'Review') : l.unpaidLeaveDays ? pill('p-warn', `${l.unpaidLeaveDays}d unpaid`) : pill('p-ok', 'Ready')}</td></tr>`).join('');
+      $('#regTitle').textContent = `Register · ${team || 'all teams'}`; $('#regAll').hidden = !team;
+      document.querySelectorAll('#cols button').forEach((b) => { const on = b.dataset.t === team; b.querySelector('i').style.background = team ? (on ? 'var(--accent)' : '#4a2f26') : '#a84a1f'; });
+    };
+    $('#cols').innerHTML = tlist.map(([n, v]) => `<button data-t="${esc(n)}" aria-label="${esc(n)} AED ${Math.round(v / 100000)} thousand" style="all:unset;cursor:pointer;flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px"><span class="num" style="font-size:12px;color:var(--muted)">${Math.round(v / 100000)}k</span><i style="display:block;width:100%;max-width:60px;height:0%;background:#a84a1f;border-radius:3px 3px 0 0;transition:height .6s cubic-bezier(.2,.8,.2,1),background .2s"></i></button>`).join('');
+    $('#colLabels').innerHTML = tlist.map(([n]) => `<span style="flex:1;text-align:center;font-size:12px;color:var(--muted)">${esc(n)}</span>`).join('');
+    requestAnimationFrame(() => document.querySelectorAll('#cols button').forEach((b, i) => { b.querySelector('i').style.height = `${(tlist[i][1] / tmax) * 88}%`; }));
+    document.querySelectorAll('#cols button').forEach((b) => (b.onclick = () => { team = team === b.dataset.t ? null : b.dataset.t; drawReg(); }));
+    $('#regAll').onclick = () => { team = null; drawReg(); };
+    drawReg();
+
+    // Animated pre-flight reveal
+    let timer;
+    const reveal = () => {
+      clearInterval(timer); let n = 0; const list = pf.checks;
+      const paint = () => {
+        $('#pfBar').style.width = `${(n / list.length) * 100}%`;
+        $('#pfList').innerHTML = list.map((c, i) => i < n
+          ? `<div class="check"><span class="ic ${c.status === 'pass' ? 'ok' : c.status === 'fail' ? 'bad' : 'warn'}">${c.status === 'pass' ? '✓' : c.status === 'fail' ? '!' : '~'}</span><div style="min-width:0"><div>${esc(c.label)}</div><div class="mono" style="font-size:12px;color:var(--muted);overflow-wrap:anywhere">${esc(c.detail)}</div></div></div>`
+          : `<div class="check" style="color:var(--muted)"><span class="ic" style="background:var(--surface-2)"></span><div>${esc(c.label)}</div></div>`).join('');
+      };
+      paint();
+      timer = setInterval(() => { n++; paint(); if (n >= list.length) clearInterval(timer); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220);
+    };
+    $('#rerun').onclick = reveal; reveal();
+
     const acts = $('#acts');
     const btn = (label, fn, pri) => { const b = document.createElement('button'); b.className = `btn ${pri ? 'pri' : ''}`; b.textContent = label; b.onclick = () => fn().catch(fail); acts.appendChild(b); };
     if (!run.locked && has('payroll_maker', 'hr_admin')) btn('Recompute', () => compute(est._id, period));
@@ -266,32 +322,103 @@ const views = {
   },
 
   async emi() {
-    const [list, nafis] = await Promise.all([api('/compliance/emiratisation'), api('/compliance/nafis?wage=6500')]);
-    V(`<h1>${t('emi')} Shield</h1><p class="sub">Quota status per establishment, from the versioned rule pack. Figures need legal validation before relying on them.</p>
-    ${list.map((a) => !a.applicable ? `<div class="panel"><h2>${esc(a.establishment.name)}</h2><p>${esc(a.reason || 'Below quota thresholds.')}</p></div>` : `
-    <div class="grid g2"><div class="panel"><div class="lbl">${esc(a.establishment.name)} · Tier ${a.tier} · ${a.headcount} staff</div>
-      <div class="big">${a.qualifyingCount} <span style="color:var(--muted);font-size:22px">/ ${a.required}</span></div>
-      <div class="meter" style="margin:12px 0"><i style="width:${Math.min(100, (a.qualifyingCount / a.required) * 100)}%"></i></div>
-      <div class="list">${a.qualifying.map((q) => `<div class="row"><span class="av">${esc(ini(q.name))}</span><div class="grow">${esc(q.name)}<div style="font-size:12px;color:var(--muted)">AED ${AED0(q.wageFils)} / month</div></div>${pill('p-ok', 'Counts')}</div>`).join('')}
-      ${a.notQualifying.map((q) => `<div class="row"><span class="av">${esc(ini(q.name))}</span><div class="grow">${esc(q.name)}<div style="font-size:12px;color:var(--bad)">${esc(q.reasons.join(' · '))}</div></div>${pill('p-bad', 'Not counted')}</div>`).join('')}</div>
-    </div>
-    <div class="panel"><h2>Hire vs. pay the fine</h2><div class="trace">Unfilled slots <b>${a.gap}</b><br>Monthly exposure <b class="num">AED ${AED0(a.monthlyExposureFils)}</b><br>Annual exposure <b class="num">AED ${AED0(a.annualExposureFils)}</b>
-      <hr style="border:0;border-top:1px dashed var(--line);margin:10px 0">Hire at <b class="num">AED ${AED0(nafis.grossWageFils)}</b><br>Modelled NAFIS support <b class="num">− AED ${AED0(nafis.modelledSubsidyFils)}</b><br>Net monthly cost <b class="num">AED ${AED0(nafis.netMonthlyCostFils)}</b></div>
-      <div class="big num" style="color:var(--ok);margin-top:12px">AED ${AED0(nafis.annualSavingVsFineFils * a.gap)}</div><div style="font-size:12.5px;color:var(--muted)">modelled yearly saving by hiring instead of paying</div>
-      <p class="note">${esc(nafis.note)}</p></div></div>`).join('')}`);
+    const list = await api('/compliance/emiratisation');
+    const a = list.find((x) => x.applicable) || list[0];
+    if (!a) { V(`<h1>${t('emi')}</h1><div class="panel empty">No establishments yet.</div>`); return; }
+    const others = list.filter((x) => x !== a);
+    V(`<div class="eyebrow">RULE PACK ${esc(a.rulePack || '')}</div><h1>Emiratisation <em>shield</em></h1>
+    <p class="sub">Quota status from the versioned rule pack, plus a planner to compare hiring against paying the fine. Figures need legal validation.</p>
+    ${a.applicable ? `<div class="grid g2">
+      <div class="panel"><div class="lbl">${esc(a.establishment.name)} · Tier ${a.tier} · ${a.headcount} staff</div>
+        <div class="big" style="margin-top:8px">${a.qualifyingCount} <span style="color:var(--muted);font-size:24px">/ ${a.required}</span></div>
+        <div class="meter" style="margin:12px 0"><i style="width:${Math.min(100, (a.qualifyingCount / a.required) * 100)}%"></i></div>
+        <div class="list">${a.qualifying.map((q) => `<div class="row"><span class="av">${esc(ini(q.name))}</span><div class="grow">${esc(q.name)}<div style="font-size:12px;color:var(--muted)">AED ${AED0(q.wageFils)} / month</div></div>${pill('p-ok', 'Counts')}</div>`).join('')}
+        ${a.notQualifying.map((q) => `<div class="row"><span class="av">${esc(ini(q.name))}</span><div class="grow">${esc(q.name)}<div style="font-size:12px;color:var(--bad)">${esc(q.reasons.join(' · '))}</div></div>${pill('p-bad', 'Not counted')}</div>`).join('')}</div></div>
+      <div class="panel"><h2>Hire vs. pay the fine</h2>
+        <div class="field"><label class="lbl" for="pH" style="display:flex;justify-content:space-between">New UAE national hires <span class="num" id="pHv" style="color:var(--accent-hi)"></span></label><input id="pH" type="range" min="0" max="4" step="1" value="${a.gap}" style="accent-color:#ff6a2b"></div>
+        <div class="field" style="margin-top:12px"><label class="lbl" for="pW" style="display:flex;justify-content:space-between">Monthly wage per hire <span class="num" id="pWv" style="color:var(--accent-hi)"></span></label><input id="pW" type="range" min="6000" max="15000" step="500" value="6500" style="accent-color:#ff6a2b"></div>
+        <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px">
+          <div class="panel" style="padding:14px;background:var(--surface-2)"><div class="lbl">Quota</div><div class="big" id="pQ" style="font-size:34px"></div></div>
+          <div class="panel" style="padding:14px;background:var(--surface-2)"><div class="lbl">Fine / year</div><div class="big" id="pF" style="font-size:34px"></div></div>
+          <div class="panel" style="padding:14px;background:var(--surface-2);grid-column:span 2"><div class="lbl">Net hiring cost / year after modelled NAFIS</div><div class="big" id="pC" style="font-size:34px"></div></div>
+        </div><p class="note">Scenario only. NAFIS support depends on the candidate and programme rules.</p></div>
+    </div>` : `<div class="panel">${esc(a.reason || 'Below quota thresholds.')}</div>`}
+    ${others.map((o) => `<div class="panel" style="margin-top:16px"><h2>${esc(o.establishment.name)}</h2><p style="margin:0;color:var(--muted)">${esc(o.reason || (o.applicable ? `Tier ${o.tier}: ${o.qualifyingCount}/${o.required}` : 'Below quota thresholds.'))}</p></div>`).join('')}`);
+    if (!a.applicable) return;
+    const upd = () => {
+      const h = +$('#pH').value, w = +$('#pW').value;
+      const quota = Math.min(a.required, a.qualifyingCount + h), gap = Math.max(0, a.required - quota);
+      const fine = gap * 9000 * 12, sub = Math.min(Math.round(w * 0.5), 7000), cost = h * (w - sub) * 12;
+      $('#pHv').textContent = h; $('#pWv').textContent = `AED ${w.toLocaleString('en-AE')}`;
+      $('#pQ').textContent = `${quota}/${a.required}`; $('#pQ').style.color = gap ? 'var(--warn)' : 'var(--ok)';
+      $('#pF').textContent = fine ? `AED ${fine.toLocaleString('en-AE')}` : 'None'; $('#pF').style.color = fine ? 'var(--bad)' : 'var(--ok)';
+      $('#pC').textContent = `AED ${cost.toLocaleString('en-AE')}`;
+    };
+    $('#pH').oninput = $('#pW').oninput = upd; upd();
   },
 
   async docs() {
-    const docs = await api('/documents/expiring?days=90');
-    const dp = (d) => pill(d <= 14 ? 'p-bad' : d <= 30 ? 'p-warn' : 'p-n', `${d} days`);
-    V(`<h1>${t('docs')}</h1><p class="sub">Alerts at 90, 60, 30 and 7 days. Opening a case creates the renewal steps with an owner.</p>
-    <div class="panel tw"><table><thead><tr><th>Holder</th><th>Document</th><th>Expiry</th><th>Expires in</th><th>Renewal</th></tr></thead><tbody>
-    ${docs.map((d) => `<tr><td>${esc(d.holder)}</td><td>${esc(d.docType.replace(/_/g, ' '))}</td><td class="mono">${fmtDate(d.expiryDate)}</td><td>${dp(d.daysLeft)}</td>
-      <td>${d.renewalCase?.status && d.renewalCase.status !== 'none' ? pill('p-ok', `Case ${d.renewalCase.status}`) : has('hr_admin') ? `<button class="btn sm" data-case="${d._id}">Open case</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="5" class="empty">No documents expiring in 90 days.</td></tr>`}
+    const docs = await api('/documents/expiring?days=120');
+    const col = (d) => (d <= 14 ? '#ff5a5f' : d <= 30 ? '#f5c542' : '#4fd69a');
+    const hash = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+    const dots = docs.map((d, i) => {
+      // golden-angle spacing spreads points evenly around the radar; hash keeps each document's spot stable
+      const days = Math.max(0, Math.min(120, d.daysLeft)), r = 14 + (days / 120) * 146, ang = ((i * 137.508 + (hash(d._id) % 23)) % 360) * (Math.PI / 180);
+      return { d, x: 180 + r * Math.cos(ang), y: 180 - r * Math.sin(ang) };
+    });
+    const week = Array.from({ length: 12 }, (_, i) => docs.filter((d) => d.daysLeft >= i * 7 && d.daysLeft < (i + 1) * 7));
+    const overdue = docs.filter((d) => d.daysLeft < 0).length;
+    const nextStep = { residence_visa: 'Medical fitness → EID biometrics → visa stamping', emirates_id: 'Typing centre application → biometrics', passport: 'Collect new passport scan', labour_card: 'MOHRE renewal', health_insurance: 'Insurer renewal quote', driving_licence: 'RTA renewal', trade_licence: 'DED renewal + tenancy contract', establishment_card: 'ICP online renewal' };
+    V(`<div class="eyebrow">NEXT 120 DAYS · ${docs.length} DOCUMENTS${overdue ? ` · ${overdue} OVERDUE` : ''}</div><h1>Compliance <em>radar</em></h1>
+    <p class="sub">Each point is a document. The closer to the centre, the sooner it expires. Click a point to open it.</p>
+    <style>@keyframes rdSweep{to{transform:rotate(360deg)}}.rd-sweep{transform-origin:180px 180px;animation:rdSweep 6s linear infinite}.rd-dot{cursor:pointer}.rd-dot:focus{outline:none}.rd-dot:focus circle:last-child{stroke:#fff}@media (prefers-reduced-motion:reduce){.rd-sweep{animation:none}}</style>
+    <div class="grid g2">
+      <div class="panel" style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+        <svg viewBox="0 0 360 360" width="340" style="max-width:100%;height:auto;flex:0 1 340px" role="img" aria-label="Document expiry radar">
+          <defs><linearGradient id="beam" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff6a2b" stop-opacity="0"/><stop offset="1" stop-color="#ff6a2b" stop-opacity=".35"/></linearGradient></defs>
+          ${[30, 60, 90, 120].map((dd) => { const r = 14 + (dd / 120) * 146; return `<circle cx="180" cy="180" r="${r}" fill="none" stroke="${dd === 30 ? '#6a3520' : '#2a5a69'}"/><text x="184" y="${180 - r + 12}" fill="#a9c0c8" font-size="10">${dd}d</text>`; }).join('')}
+          <line x1="20" y1="180" x2="340" y2="180" stroke="#1f4b59"/><line x1="180" y1="20" x2="180" y2="340" stroke="#1f4b59"/>
+          <g class="rd-sweep"><path d="M180 180 L340 180 A160 160 0 0 0 293 67 Z" fill="url(#beam)"/></g>
+          ${dots.map((p, i) => `<g class="rd-dot" data-i="${i}" tabindex="0" role="button" aria-label="${esc(p.d.holder)}, ${esc(p.d.docType.replace(/_/g, ' '))}, ${p.d.daysLeft} days"><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="${col(p.d.daysLeft)}" fill-opacity=".18"/><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5.5" fill="${col(p.d.daysLeft)}" stroke="#0f2e39" stroke-width="2"/></g>`).join('')}
+          <circle cx="180" cy="180" r="4" fill="#ff7a3d"/>
+        </svg>
+        <div id="rdSel" style="flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+      <div class="panel"><h2>Next 12 weeks</h2><div id="wkCap" style="font-size:13px;color:var(--muted);min-height:40px"></div>
+        <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:10px">
+          ${week.map((w, i) => `<button class="wk" data-w="${i}" aria-label="Week ${i + 1}: ${w.length} documents" style="all:unset;cursor:pointer;display:flex;flex-direction:column;gap:4px"><span style="height:52px;border-radius:4px;display:grid;place-items:center;font-family:var(--f-mono);font-size:15px;font-weight:600;background:${['#0b2530', '#5a2e1a', '#a5481c', '#ff6a2b'][Math.min(3, w.length)]};color:${w.length >= 3 ? '#0b2530' : '#fff'};border:1px solid transparent">${w.length}</span><span style="font-size:11px;color:var(--muted);text-align:center">W${i + 1}</span></button>`).join('')}
+        </div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:16px">
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff5a5f;margin-inline-end:6px"></span>≤ 14 days</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f5c542;margin-inline-end:6px"></span>15–30 days</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#4fd69a;margin-inline-end:6px"></span>30+ days</span></div></div>
+    </div>
+    <div class="panel tw" style="margin-top:16px"><table><thead><tr><th>Holder</th><th>Document</th><th>Expiry</th><th>Expires in</th><th>Renewal</th></tr></thead><tbody>
+    ${docs.map((d) => `<tr><td>${esc(d.holder)}</td><td>${esc(d.docType.replace(/_/g, ' '))}</td><td class="mono">${fmtDate(d.expiryDate)}</td><td>${pill(d.daysLeft < 0 ? 'p-bad' : d.daysLeft <= 14 ? 'p-bad' : d.daysLeft <= 30 ? 'p-warn' : 'p-ok', d.daysLeft < 0 ? `${-d.daysLeft} days overdue` : `${d.daysLeft} days`)}</td>
+      <td>${d.renewalCase?.status && d.renewalCase.status !== 'none' ? pill('p-ok', `Case ${d.renewalCase.status}`) : has('hr_admin') ? `<button class="btn sm" data-case="${d._id}">Open case</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="5" class="empty">No documents expiring in 120 days.</td></tr>`}
     </tbody></table></div>`);
-    document.querySelectorAll('[data-case]').forEach((b) => (b.onclick = async () => { try { const c = await api(`/documents/${b.dataset.case}/renewal`, { method: 'POST' }); toast(`Case opened: ${c.steps.map((s) => s.name).join(' → ')}`); views.docs(); } catch (e) { fail(e); } }));
+    const openCase = async (id) => { try { const c = await api(`/documents/${id}/renewal`, { method: 'POST' }); toast(`Case opened: ${c.steps.map((s) => s.name).join(' → ')}`); views.docs(); } catch (e) { fail(e); } };
+    const select = (i) => {
+      const d = dots[i]?.d; if (!d) { $('#rdSel').innerHTML = '<div class="empty">Nothing due.</div>'; return; }
+      const done = d.renewalCase?.status && d.renewalCase.status !== 'none';
+      $('#rdSel').innerHTML = `<div class="lbl">Selected</div><div style="font-family:var(--f-display);font-size:26px;font-weight:800;text-transform:uppercase;line-height:1.05">${esc(d.holder)}</div>
+        <div style="color:var(--soft)">${esc(d.docType.replace(/_/g, ' '))}</div>
+        <div class="big" style="color:${col(d.daysLeft)}">${d.daysLeft < 0 ? -d.daysLeft : d.daysLeft}<span style="font-size:16px;color:var(--muted);font-weight:500"> days ${d.daysLeft < 0 ? 'overdue' : 'left'}</span></div>
+        <div style="font-size:13px;color:var(--muted)">Next step: ${esc(nextStep[d.docType] || 'Collect new copy')}</div>
+        ${done ? pill('p-ok', `Case ${d.renewalCase.status}`) : has('hr_admin') ? `<button class="btn pri" id="rdCase" style="align-self:flex-start">Open renewal case</button>` : ''}`;
+      const b = $('#rdCase'); if (b) b.onclick = () => openCase(d._id);
+      document.querySelectorAll('.rd-dot').forEach((g) => g.querySelectorAll('circle')[0].setAttribute('r', +g.dataset.i === i ? 15 : 10));
+    };
+    document.querySelectorAll('.rd-dot').forEach((g) => { g.onclick = () => select(+g.dataset.i); g.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(+g.dataset.i); } }; });
+    const showWeek = (i) => {
+      const w = week[i];
+      $('#wkCap').textContent = `Week ${i + 1}: ${w.length ? w.map((d) => `${d.holder} (${d.docType.replace(/_/g, ' ')})`).join(', ') : 'nothing due'}`;
+      document.querySelectorAll('.wk span:first-child').forEach((s, j) => (s.style.borderColor = j === i ? '#ff7a3d' : 'transparent'));
+    };
+    document.querySelectorAll('.wk').forEach((b) => { b.onmouseenter = b.onfocus = b.onclick = () => showWeek(+b.dataset.w); });
+    document.querySelectorAll('[data-case]').forEach((b) => (b.onclick = () => openCase(b.dataset.case)));
+    select(dots.findIndex((p) => p.d.daysLeft >= 0) >= 0 ? dots.findIndex((p) => p.d.daysLeft >= 0) : 0); showWeek(0);
   },
-
   async eosb() {
     const list = await api('/employees?status=active');
     V(`<h1>${t('eosb')}</h1><p class="sub">Calculated on the server from the versioned rule pack, with every step shown.</p>
