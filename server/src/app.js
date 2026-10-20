@@ -11,6 +11,7 @@ import mvp from './routes/mvp.js';
 import security from './routes/security.js';
 import attendance from './routes/attendance.js';
 import employees360 from './routes/employees360.js';
+import workspace from './routes/workspace.js';
 
 export function createApp() {
   const app = express();
@@ -48,6 +49,7 @@ export function createApp() {
   app.use('/api', security);
   app.use('/api', attendance);
   app.use('/api', employees360);
+  app.use('/api', workspace);
 
   if (config.serveWeb) {
     const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web');

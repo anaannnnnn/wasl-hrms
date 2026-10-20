@@ -290,3 +290,46 @@ attSchema.plugin(tenantPlugin);
 attSchema.index({ tenantId: 1, employeeId: 1, date: 1, seq: 1 }, { unique: true });
 attSchema.index({ tenantId: 1, date: 1 });
 export const Attendance = model('Attendance', attSchema);
+
+// ---------- Applicant tracker (ATS) ----------
+const applicantSchema = new Schema({
+  name: { type: String, required: true }, email: String, phone: String,
+  role: String, department: String, establishmentId: { type: Id, ref: 'Establishment' },
+  stage: { type: String, enum: ['applied', 'screening', 'interviewed', 'offer', 'hired', 'rejected'], default: 'applied' },
+  visaStatus: { type: String, enum: ['visit_visa', 'residence_on_notice', 'golden_visa', 'uae_national', 'outside_uae', 'other'], default: 'other' },
+  expectedSalaryFils: Number, source: String, rating: { type: Number, min: 0, max: 5, default: 0 }, tags: [String], notes: String,
+  order: { type: Number, default: 0 }, movedAt: Date,
+}, { timestamps: true });
+applicantSchema.plugin(tenantPlugin);
+applicantSchema.index({ tenantId: 1, stage: 1, order: 1 });
+export const Applicant = model('Applicant', applicantSchema);
+
+// ---------- Tasks (HR to-dos and employee tasks) ----------
+const taskSchema = new Schema({
+  title: { type: String, required: true }, ownerUserId: { type: Id, ref: 'User' }, employeeId: { type: Id, ref: 'Employee' },
+  dueDate: Date, done: { type: Boolean, default: false }, doneAt: Date, link: String, createdBy: Id,
+}, { timestamps: true });
+taskSchema.plugin(tenantPlugin);
+taskSchema.index({ tenantId: 1, ownerUserId: 1, done: 1 });
+taskSchema.index({ tenantId: 1, employeeId: 1, done: 1 });
+export const Task = model('Task', taskSchema);
+
+// ---------- Company calendar events ----------
+const eventSchema = new Schema({
+  title: { type: String, required: true }, date: { type: String, required: true }, start: String, end: String,
+  detail: String, audience: { type: String, enum: ['all', 'hr', 'department'], default: 'all' }, department: String,
+}, { timestamps: true });
+eventSchema.plugin(tenantPlugin);
+eventSchema.index({ tenantId: 1, date: 1 });
+export const CalendarEvent = model('CalendarEvent', eventSchema);
+
+// ---------- Wellness pulse check-ins (reported in aggregate only) ----------
+const pulseSchema = new Schema({
+  employeeId: { type: Id, ref: 'Employee', required: true }, department: String,
+  date: { type: String, required: true }, mood: { type: Number, min: 1, max: 5, required: true },
+  energy: { type: Number, min: 1, max: 5 }, workload: { type: Number, min: 1, max: 5 }, comment: { type: String, maxlength: 500 },
+}, { timestamps: true });
+pulseSchema.plugin(tenantPlugin);
+pulseSchema.index({ tenantId: 1, employeeId: 1, date: 1 }, { unique: true });
+pulseSchema.index({ tenantId: 1, date: 1 });
+export const Pulse = model('Pulse', pulseSchema);

@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
 import { runAsSystem, runWithTenant } from './lib/tenantContext.js';
-import { Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, AuditLog, Notification, ServiceRequest, Attendance } from './models/index.js';
+import { Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, AuditLog, Notification, ServiceRequest, Attendance, Applicant, Task, CalendarEvent, Pulse } from './models/index.js';
 import { localParts } from './lib/attendance.js';
 import { buildUaeIban } from './lib/iban.js';
 import { toFils } from './lib/money.js';
@@ -69,7 +69,7 @@ const FZ_TEAM = [
 await mongoose.connect(config.mongoUri);
 console.log('Connected. Resetting demo data…');
 await runAsSystem(async () => {
-  await Promise.all([Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, Notification, ServiceRequest, Attendance].map((m) => m.deleteMany({})));
+  await Promise.all([Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, Notification, ServiceRequest, Attendance, Applicant, Task, CalendarEvent, Pulse].map((m) => m.deleteMany({})));
   await PayrollRun.syncIndexes().catch(() => {});
   await mongoose.connection.collection('auditlogs').deleteMany({});
 });
@@ -290,6 +290,63 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     });
   }
   await Attendance.insertMany(attRows);
+
+  // ---- Workspace demo data: applicants, tasks, calendar, wellness pulse, more leave for the timeline ----
+  const dayStr = (n) => localParts(new Date(Date.now() + n * 864e5)).date;
+  await Applicant.insertMany([
+    ['Harper Stone', 'Sales Executive', 'Sales', 'applied', 'visit_visa', 7000, 'LinkedIn', 3, ['Arabic', 'B2B']],
+    ['Aliya Novak', 'Accountant', 'Finance', 'applied', 'residence_on_notice', 9500, 'Bayt', 4, ['IFRS']],
+    ['Jay Raver', 'Delivery Driver', 'Logistics', 'applied', 'outside_uae', 3200, 'Referral', 2, ['UAE licence']],
+    ['Mohammed Al Mazrouei', 'HR Coordinator', 'HR', 'screening', 'uae_national', 9000, 'NAFIS', 4, ['Emirati', 'NAFIS eligible']],
+    ['Lucy Keyword', 'Procurement Officer', 'Operations', 'interviewed', 'residence_on_notice', 8500, 'LinkedIn', 4, ['SAP']],
+    ['Omar Haddad', 'Warehouse Supervisor', 'Warehouse', 'interviewed', 'golden_visa', 7500, 'Indeed', 3, ['Forklift']],
+    ['Millie Ligma', 'Sales Coordinator', 'Sales', 'offer', 'visit_visa', 5500, 'Website', 5, ['CRM']],
+    ['Mike Starr', 'IT Support Specialist', 'Operations', 'offer', 'residence_on_notice', 6500, 'Referral', 4, ['Microsoft 365']],
+    ['Victor Kowalski', 'Fleet Coordinator', 'Logistics', 'hired', 'residence_on_notice', 5200, 'LinkedIn', 4, ['Telematics']],
+    ['Fatma Al Shamsi', 'Customer Service', 'Sales', 'screening', 'uae_national', 7000, 'NAFIS', 3, ['Emirati']],
+  ].map(([name, role, department, stage, visaStatus, sal, source, rating, tags], i) => ({ name, role, department, stage, visaStatus, expectedSalaryFils: toFils(sal), source, rating, tags, order: i, email: `${name.toLowerCase().replace(/[^a-z]+/g, '.')}@mail.demo`, movedAt: new Date(Date.now() - i * 864e5), establishmentId: est._id })));
+  const hrUser = await User.findOne({ email: 'admin@alnoor.demo' });
+  await Task.insertMany([
+    { title: 'Interview Lucy Keyword (Procurement Officer)', ownerUserId: hrUser._id, dueDate: new Date() },
+    { title: 'Renew establishment card with ICP', ownerUserId: hrUser._id, dueDate: new Date() },
+    { title: 'Submit October WPS file to Emirates NBD', ownerUserId: hrUser._id, dueDate: new Date(Date.now() + 864e5) },
+    { title: 'Register Fatima Al Hashmi with GPSSA', ownerUserId: hrUser._id, dueDate: new Date(Date.now() + 2 * 864e5) },
+    { title: 'Send offer letter to Millie Ligma', ownerUserId: hrUser._id, dueDate: new Date(Date.now() + 3 * 864e5), done: false },
+    { title: 'Probation review: Ana Petrova', ownerUserId: hrUser._id, dueDate: new Date(Date.now() - 864e5), done: true, doneAt: new Date() },
+    { title: 'Upload renewed residence visa', employeeId: by('Ahmed Khan')._id, dueDate: new Date(Date.now() + 5 * 864e5) },
+    { title: 'Complete fire safety training', employeeId: by('Ahmed Khan')._id, dueDate: new Date() },
+    { title: 'Update emergency contact', employeeId: by('Ahmed Khan')._id, done: true, doneAt: new Date() },
+    { title: 'Submit September commission sheet', employeeId: by('Grace Okafor')._id, dueDate: new Date() },
+    { title: 'Book medical fitness for passport renewal', employeeId: by('Grace Okafor')._id, dueDate: new Date(Date.now() + 4 * 864e5) },
+  ]);
+  await CalendarEvent.insertMany([
+    { title: 'Toolbox talk: heat safety', date: dayStr(0), start: '07:45', end: '08:00', detail: 'Warehouse & Logistics', audience: 'all' },
+    { title: 'Payroll cut-off', date: dayStr(5), start: '17:00', end: '17:00', detail: 'Overtime and leave changes due', audience: 'hr' },
+    { title: 'Interview: Lucy Keyword', date: dayStr(1), start: '11:00', end: '11:45', detail: 'Procurement Officer · Teams', audience: 'hr' },
+    { title: 'Sales weekly huddle', date: dayStr(1), start: '09:30', end: '10:00', detail: 'Sales team', audience: 'department', department: 'Sales' },
+    { title: 'Fleet maintenance briefing', date: dayStr(2), start: '14:00', end: '14:30', detail: 'All drivers', audience: 'department', department: 'Logistics' },
+    { title: 'Town hall with Rashid', date: dayStr(3), start: '16:00', end: '16:45', detail: 'Q4 priorities · Main warehouse', audience: 'all' },
+    { title: 'Emiratisation half-year review', date: dayStr(8), start: '10:00', end: '11:00', detail: 'MOHRE quota check', audience: 'hr' },
+    { title: 'National Day celebration', date: dayStr(41), start: '13:00', end: '15:00', detail: 'Office lunch', audience: 'all' },
+  ]);
+  const moodsBy = { Warehouse: 3.4, Logistics: 3.1, Sales: 3.9, Finance: 4.1, Operations: 3.7, HR: 4.3 };
+  const pulses = [];
+  emps.forEach((e, i) => {
+    for (let w = 0; w < 4; w++) {
+      if (rnd(i * 7 + w) < 0.3) continue;
+      const base = moodsBy[e.department] || 3.5;
+      const mood = Math.max(1, Math.min(5, Math.round(base + (rnd(i * 11 + w) - 0.5) * 2)));
+      pulses.push({ employeeId: e._id, department: e.department, date: dayStr(-(w * 7 + (i % 5) + 1)), mood, energy: Math.max(1, Math.min(5, mood + (rnd(i + w * 3) < 0.5 ? 0 : -1))), workload: Math.max(1, Math.min(5, Math.round(6 - base + (rnd(i * 5 + w) - 0.5) * 2))),
+        ...(rnd(i * 13 + w) < 0.12 ? { comment: ['Long shifts this week with the new routes.', 'Great support from my manager.', 'AC in the warehouse needs fixing.', 'Happy with the new clock-in app.', 'Would like more training on the CRM.', 'Too many last-minute deliveries.'][(i + w) % 6] } : {}) });
+    }
+  });
+  await Pulse.insertMany(pulses);
+  // A few more approved / pending leaves spread across this month for the timeline
+  await LeaveRequest.insertMany([
+    ['Mohammed Rafiq', 'annual', 2, 6, 'approved'], ['Sunil Perera', 'sick', -3, -2, 'approved'], ['Arjun Nair', 'annual', 10, 13, 'pending'],
+    ['Maria Gonzales', 'annual', 15, 19, 'approved'], ['Hana Kim', 'annual', -8, -4, 'approved'], ['Elena Rossi', 'parental', 6, 10, 'approved'],
+    ['Samir Haddad', 'annual', 18, 22, 'pending'], ['Bikash Gurung', 'unpaid', 1, 1, 'approved'],
+  ].filter(([n]) => by(n)).map(([n, type, s0, e0, status]) => ({ employeeId: by(n)._id, type, startDate: inDays(s0), endDate: inDays(e0), days: e0 - s0 + 1, status })));
 
   console.log(`Seeded ${emps.length + fzEmps.length + 1} employees across ${est.name} and ${fz.name}, periods ${prevP} (paid) and ${thisP} (inputs).`);
 });
