@@ -37,18 +37,27 @@ const fail = (e) => toast(e.message);
 const has = (...r) => me?.roles?.some((x) => r.includes(x) || x === 'owner');
 
 // ---------------- Login ----------------
+const EMP_ENTRY = /^\/employee\/?$/.test(location.pathname);
 function loginView() {
+  const empMode = EMP_ENTRY;
   $('#root').innerHTML = `<div class="login"><form class="panel" id="lf">
-    <div class="brand" style="padding:0"><span class="mark">W</span><div><b>Wasl</b><small>HRMS · UAE</small></div></div>
-    <h1 style="font-size:38px;margin:4px 0 0">Run <em>payroll</em> with confidence</h1>
-    <p class="sub" style="margin:0">UAE HR, payroll and compliance</p>
-    <div class="field"><label class="lbl" for="em">Email</label><input id="em" type="email" value="admin@alnoor.demo" required></div>
-    <div class="field"><label class="lbl" for="pw">Password</label><input id="pw" type="password" value="Demo@2026" required></div>
+    <div class="brand" style="padding:0"><span class="mark">W</span><div><b>Wasl</b><small>${empMode ? 'EMPLOYEE APP' : 'HRMS · UAE'}</small></div></div>
+    ${empMode
+      ? `<h1 style="font-size:38px;margin:4px 0 0">Your <em>workday</em>, in your pocket</h1>
+         <p class="sub" style="margin:0">Clock in, apply for leave, get payslips and letters.</p>`
+      : `<h1 style="font-size:38px;margin:4px 0 0">Run <em>payroll</em> with confidence</h1>
+         <p class="sub" style="margin:0">UAE HR, payroll and compliance</p>`}
+    <div class="field"><label class="lbl" for="em">${empMode ? 'Work email' : 'Email'}</label><input id="em" type="email" autocomplete="username" value="${empMode ? 'ahmed@alnoor.demo' : 'admin@alnoor.demo'}" required></div>
+    <div class="field"><label class="lbl" for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" value="Demo@2026" required></div>
     <div class="err" id="le"></div>
     <button class="btn pri" type="submit">Sign in</button>
-    <p class="note">Demo accounts: admin@alnoor.demo (HR + payroll maker), checker@alnoor.demo (payroll checker). Password Demo@2026.</p>
+    <p class="note">${empMode
+      ? 'Demo employees: ahmed@alnoor.demo (delivery driver), grace@alnoor.demo (sales). Password Demo@2026.'
+      : 'Demo accounts: admin@alnoor.demo (HR + payroll maker), checker@alnoor.demo (payroll checker). Password Demo@2026.'}</p>
+    <a href="${empMode ? '/' : '/employee'}" style="font-size:13px">${empMode ? 'HR or manager? Sign in here' : 'Employee? Use the employee app'}</a>
     <div class="powered" style="padding:12px 0 0"><span>POWERED BY</span><img src="devx-logo-light.png" alt="DevX Technologies"></div>
   </form></div>`;
+  translateTree($('#root'), L);
   $('#lf').onsubmit = async (e) => {
     e.preventDefault();
     try {
