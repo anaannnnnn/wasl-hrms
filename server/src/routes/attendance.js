@@ -23,6 +23,20 @@ const myEmp = async (req) => {
 const siteOf = async (emp) => Establishment.findById(emp.establishmentId).select('name geo shift rulePackId').lean();
 const isRamadan = () => process.env.RAMADAN_MODE === 'true';
 const pub = (a) => ({ ...a, photo: undefined });
+// Combine a day's sessions (sorted by seq) into one view: first in, last out, totals, open session.
+function dayView(records = []) {
+  const list = [...records].sort((a, b) => (a.seq || 0) - (b.seq || 0)).map(pub);
+  if (!list.length) return null;
+  const first = list[0], last = list.at(-1);
+  const flags = []; const seen = new Set();
+  for (const r of list) for (const f of r.flags || []) if (!seen.has(f.code)) { seen.add(f.code); flags.push(f); }
+  return {
+    _id: first._id, date: first.date, sessions: list, current: last, open: !last.clockOut?.at,
+    clockIn: first.clockIn, clockOut: last.clockOut?.at ? last.clockOut : null, hasPhoto: list.some((r) => r.hasPhoto),
+    minutesWorked: list.reduce((a, r) => a + (r.minutesWorked || 0), 0), overtimeMinutes: list.reduce((a, r) => a + (r.overtimeMinutes || 0), 0),
+    lateMinutes: first.lateMinutes || 0, flags,
+  };
+}
 
 const gpsSchema = z.object({
   lat: z.number().min(-90).max(90).optional(), lng: z.number().min(-180).max(180).optional(),
@@ -33,8 +47,8 @@ const gpsSchema = z.object({
 r.get('/me/attendance/today', ah(async (req, res) => {
   const emp = await myEmp(req); const site = await siteOf(emp);
   const { date } = localParts(new Date(), site?.shift?.timezone);
-  const rec = await Attendance.findOne({ employeeId: emp._id, date }).lean();
-  res.json({ date, record: rec ? pub(rec) : null, site: { name: site?.name, label: site?.geo?.label, lat: site?.geo?.lat, lng: site?.geo?.lng, radiusM: site?.geo?.radiusM, shift: site?.shift }, ramadan: isRamadan() });
+  const recs = await Attendance.find({ employeeId: emp._id, date }).lean();
+  res.json({ date, record: dayView(recs), site: { name: site?.name, label: site?.geo?.label, lat: site?.geo?.lat, lng: site?.geo?.lng, radiusM: site?.geo?.radiusM, shift: site?.shift }, ramadan: isRamadan() });
 }));
 
 r.post('/me/clock-in', ah(async (req, res) => {
@@ -42,10 +56,12 @@ r.post('/me/clock-in', ah(async (req, res) => {
   const emp = await myEmp(req); const site = await siteOf(emp);
   const now = new Date();
   const ev = evaluateClockIn({ at: now, gps: Number.isFinite(b.lat) ? { lat: b.lat, lng: b.lng, accuracyM: b.accuracyM } : { error: b.gpsError }, site: site?.geo && { ...site.geo, label: site.geo.label || site.name }, shift: site?.shift, timeZone: site?.shift?.timezone, ramadan: isRamadan() });
-  const exists = await Attendance.findOne({ employeeId: emp._id, date: ev.date }).lean();
-  if (exists?.clockIn?.at) return res.status(409).json({ error: `You already clocked in today at ${new Date(exists.clockIn.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: site?.shift?.timezone || 'Asia/Dubai' })}.` });
+  const open = await Attendance.findOne({ employeeId: emp._id, 'clockIn.at': { $gte: new Date(Date.now() - 20 * 3600e3) }, 'clockOut.at': { $exists: false } }).lean();
+  if (open) return res.status(409).json({ error: `You are already clocked in since ${new Date(open.clockIn.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: site?.shift?.timezone || 'Asia/Dubai' })}. Clock out first.` });
+  const seq = await Attendance.countDocuments({ employeeId: emp._id, date: ev.date });
+  if (seq > 0) { ev.lateMinutes = 0; ev.status = 'present'; ev.flags = ev.flags.filter((f) => f.code !== 'LATE'); } // lateness only applies to the first clock-in of the day
   const rec = await Attendance.create({
-    employeeId: emp._id, establishmentId: emp.establishmentId, date: ev.date, source: /Mobi|Android|iPhone/i.test(b.device || req.headers['user-agent'] || '') ? 'mobile' : 'web',
+    employeeId: emp._id, establishmentId: emp.establishmentId, date: ev.date, seq, source: /Mobi|Android|iPhone/i.test(b.device || req.headers['user-agent'] || '') ? 'mobile' : 'web',
     clockIn: { at: now, lat: b.lat, lng: b.lng, accuracyM: b.accuracyM, distanceM: ev.distanceM, insideGeofence: ev.insideGeofence, gpsError: b.gpsError, device: (b.device || req.headers['user-agent'] || '').slice(0, 200) },
     photo: b.photo, hasPhoto: true, lateMinutes: ev.lateMinutes, status: ev.status, flags: ev.flags,
   });
@@ -53,7 +69,7 @@ r.post('/me/clock-in', ah(async (req, res) => {
     await Notification.create({ audience: 'hr', title: `Clock-in needs review: ${emp.fullName}`, body: ev.flags.map((f) => f.msg).join(' · '), link: '#attendance', severity: 'warn' }).catch(() => {});
   }
   await audit(req, 'attendance.clock_in', 'Attendance', rec._id, null, { date: ev.date, inside: ev.insideGeofence, late: ev.lateMinutes });
-  res.status(201).json({ record: pub(rec.toObject()), message: ev.lateMinutes ? `Clocked in · ${ev.lateMinutes} min late` : 'Clocked in. Have a good shift!' });
+  res.status(201).json({ record: pub(rec.toObject()), message: seq > 0 ? 'Clocked in again. Welcome back!' : ev.lateMinutes ? `Clocked in · ${ev.lateMinutes} min late` : 'Clocked in. Have a good shift!' });
 }));
 
 r.post('/me/clock-out', ah(async (req, res) => {
@@ -64,6 +80,11 @@ r.post('/me/clock-out', ah(async (req, res) => {
   if (!rec) return res.status(400).json({ error: 'You are not clocked in. Clock in first.' });
   const now = new Date();
   const d = evaluateDay({ clockInAt: rec.clockIn.at, clockOutAt: now, shift: site?.shift, ramadan: isRamadan() });
+  // Overtime is judged on the whole day: earlier sessions count toward the standard day
+  const earlier = await Attendance.find({ employeeId: emp._id, date: rec.date, _id: { $ne: rec._id } }).select('minutesWorked').lean();
+  const before = earlier.reduce((a, r) => a + (r.minutesWorked || 0), 0);
+  const std = d.standardMinutes ?? 480;
+  d.overtimeMinutes = Math.max(0, before + d.minutesWorked - std) - Math.max(0, before - std);
   let distanceM = null, inside = null;
   if (Number.isFinite(b.lat) && site?.geo?.lat != null) {
     const ev = evaluateClockIn({ at: now, gps: { lat: b.lat, lng: b.lng, accuracyM: b.accuracyM }, site: site.geo, shift: { start: '00:00', graceMin: 1440 } });
@@ -74,7 +95,8 @@ r.post('/me/clock-out', ah(async (req, res) => {
   if (d.overtimeMinutes > 0) rec.flags.push({ code: 'OVERTIME', msg: `${Math.round(d.overtimeMinutes / 6) / 10} h beyond the standard day` });
   await rec.save();
   await audit(req, 'attendance.clock_out', 'Attendance', rec._id, null, { minutes: d.minutesWorked });
-  res.json({ record: pub(rec.toObject()), message: `Clocked out · ${Math.floor(d.minutesWorked / 60)}h ${d.minutesWorked % 60}m worked` });
+  const total = before + d.minutesWorked;
+  res.json({ record: pub(rec.toObject()), message: `Clocked out · ${Math.floor(total / 60)}h ${total % 60}m worked today` });
 }));
 
 r.get('/me/attendance', ah(async (req, res) => {
@@ -95,7 +117,7 @@ r.get('/me/home', ah(async (req, res) => {
   const { date } = localParts(new Date(), site?.shift?.timezone);
   const month = date.slice(0, 7);
   const [today, monthRecs, requests, docs, runs, leaves, notes] = await Promise.all([
-    Attendance.findOne({ employeeId: emp._id, date }).lean(),
+    Attendance.find({ employeeId: emp._id, date }).lean(),
     Attendance.find({ employeeId: emp._id, date: { $gte: `${month}-01`, $lte: `${month}-31` } }).lean(),
     ServiceRequest.find({ employeeId: emp._id }).sort({ createdAt: -1 }).limit(5).lean(),
     ComplianceDocument.find({ employeeId: emp._id }).sort({ expiryDate: 1 }).lean(),
@@ -107,7 +129,7 @@ r.get('/me/home', ah(async (req, res) => {
   const pays = runs.map((run) => ({ runId: run._id, period: run.period, type: run.type, netFils: lineOf(run)?.netFils || 0 })).reverse();
   res.json({
     profile: { fullName: emp.fullName, fullNameAr: emp.fullNameAr, employeeNo: emp.employeeNo, jobTitle: emp.jobTitle, department: emp.department, joinDate: emp.joinDate, establishment: site?.name },
-    date, today: today ? pub(today) : null, shift: site?.shift, site: site?.geo ? { label: site.geo.label || site.name, radiusM: site.geo.radiusM } : null,
+    date, today: dayView(today), shift: site?.shift, site: site?.geo ? { label: site.geo.label || site.name, radiusM: site.geo.radiusM } : null,
     month: summarize(monthRecs),
     balances: leaveBalances({ employee: emp, requests: leaves, rulePackId: site?.rulePackId }),
     upcomingLeave: leaves.filter((l) => ['pending', 'approved'].includes(l.status) && new Date(l.endDate) >= new Date(date)).slice(0, 3),
@@ -142,12 +164,12 @@ r.post('/me/assistant', ah(async (req, res) => {
   const last = runs[0] && runs[0].lines.find((l) => String(l.employeeId) === String(emp._id));
   const docs = await ComplianceDocument.find({ employeeId: emp._id }).sort({ expiryDate: 1 }).lean();
   const { date } = localParts(new Date(), site?.shift?.timezone);
-  const today = await Attendance.findOne({ employeeId: emp._id, date }).lean();
+  const today = dayView(await Attendance.find({ employeeId: emp._id, date }).lean());
   const ctx = {
     name: emp.fullName, jobTitle: emp.jobTitle, annualLeaveRemaining: bal.annual?.remaining, annualEntitlement: bal.annual?.entitlement, sickFullPayLeft: bal.sick?.fullPayLeft,
     lastPayslip: last ? { period: runs[0].period, netAED: (last.netFils / 100).toFixed(2) } : null,
     documents: docs.map((d) => ({ type: d.docType, expires: new Date(d.expiryDate).toISOString().slice(0, 10) })),
-    clockedInToday: !!today?.clockIn?.at, clockedOut: !!today?.clockOut?.at, shift: site?.shift, holidays: upcomingHolidays(date),
+    clockedInToday: !!today?.clockIn?.at, clockedOut: !!today && !today.open, shift: site?.shift, holidays: upcomingHolidays(date),
   };
   const s = message.toLowerCase();
   const actions = [];
@@ -190,16 +212,17 @@ r.get('/attendance', requireRole('hr_admin', 'manager', 'payroll_maker'), ah(asy
     Attendance.find({ date, ...(req.query.establishmentId ? { establishmentId: req.query.establishmentId } : {}) }).lean(),
     LeaveRequest.find({ status: 'approved', startDate: { $lte: new Date(`${date}T23:59:59Z`) }, endDate: { $gte: new Date(`${date}T00:00:00Z`) } }).select('employeeId type').lean(),
   ]);
-  const byEmp = Object.fromEntries(recs.map((a) => [String(a.employeeId), a]));
+  const grouped = {}; for (const a of recs) (grouped[String(a.employeeId)] ||= []).push(a);
+  const byEmp = Object.fromEntries(Object.entries(grouped).map(([k, v]) => [k, dayView(v)]));
   const onLeave = Object.fromEntries(leaves.map((l) => [String(l.employeeId), l.type]));
   const rows = emps.map((e) => {
     const a = byEmp[String(e._id)];
-    const state = a?.clockOut?.at ? 'out' : a?.clockIn?.at ? 'in' : onLeave[String(e._id)] ? 'leave' : 'absent';
-    return { employee: e, state, leaveType: onLeave[String(e._id)], record: a ? pub(a) : null };
+    const state = a ? (a.open ? 'in' : 'out') : onLeave[String(e._id)] ? 'leave' : 'absent';
+    return { employee: e, state, leaveType: onLeave[String(e._id)], record: a };
   }).sort((x, y) => ['in', 'out', 'leave', 'absent'].indexOf(x.state) - ['in', 'out', 'leave', 'absent'].indexOf(y.state));
   res.json({
     date, rows,
-    counts: { total: rows.length, in: rows.filter((x) => x.state === 'in').length, out: rows.filter((x) => x.state === 'out').length, leave: rows.filter((x) => x.state === 'leave').length, absent: rows.filter((x) => x.state === 'absent').length, late: recs.filter((a) => a.lateMinutes > 0).length, outside: recs.filter((a) => a.clockIn?.insideGeofence === false).length },
+    counts: { total: rows.length, in: rows.filter((x) => x.state === 'in').length, out: rows.filter((x) => x.state === 'out').length, leave: rows.filter((x) => x.state === 'leave').length, absent: rows.filter((x) => x.state === 'absent').length, late: Object.values(byEmp).filter((a) => a.lateMinutes > 0).length, outside: Object.values(byEmp).filter((a) => a.sessions.some((x) => x.clockIn?.insideGeofence === false)).length },
   });
 }));
 
