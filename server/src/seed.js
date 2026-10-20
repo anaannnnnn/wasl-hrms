@@ -25,8 +25,45 @@ const PEOPLE = [
   ['Ravi Shrestha', 'رافي شريستا', 'Delivery Driver', 'Logistics', 'Nepal', false, 3000, 1500, 500, '2024-08-01', 4],
   ['Layla Haddad', 'ليلى حداد', 'Customer Service', 'Sales', 'Jordan', false, 5000, 2500, 1000, '2025-01-06', 3],
 ];
-const FILLER_ROLES = [['Picker', 'Warehouse', 4, 2200], ['Driver', 'Logistics', 4, 2600], ['Sales Associate', 'Sales', 3, 4200], ['Admin Assistant', 'Operations', 3, 3800]];
-const NATS = ['India', 'Pakistan', 'Philippines', 'Bangladesh', 'Egypt', 'Nepal', 'Sri Lanka'];
+// [name, nationality, role, department, basic AED, MOHRE skill, join date]
+const TEAM = [
+  ['Mohammed Rafiq', 'Bangladesh', 'Picker', 'Warehouse', 2200, 4, '2019-04-12'],
+  ['Sunil Perera', 'Sri Lanka', 'Forklift Operator', 'Warehouse', 2800, 4, '2018-06-03'],
+  ['Arjun Nair', 'India', 'Inventory Controller', 'Warehouse', 4200, 3, '2021-09-15'],
+  ['Mark Villanueva', 'Philippines', 'Picker', 'Warehouse', 2200, 4, '2023-02-20'],
+  ['Imran Shah', 'Pakistan', 'Loader', 'Warehouse', 2000, 5, '2024-01-08'],
+  ['Kamal Hossain', 'Bangladesh', 'Picker', 'Warehouse', 2200, 4, '2022-07-11'],
+  ['Deepak Thapa', 'Nepal', 'Packer', 'Warehouse', 2100, 4, '2025-03-01'],
+  ['Hassan Raza', 'Pakistan', 'Delivery Driver', 'Logistics', 2600, 4, '2020-10-19'],
+  ['Bikash Gurung', 'Nepal', 'Delivery Driver', 'Logistics', 2600, 4, '2021-05-24'],
+  ['Rohan Fernandes', 'India', 'Fleet Coordinator', 'Logistics', 5200, 3, '2019-11-04'],
+  ['Tariq Mahmood', 'Pakistan', 'Heavy Truck Driver', 'Logistics', 3400, 4, '2017-08-14'],
+  ['Joel Santos', 'Philippines', 'Delivery Driver', 'Logistics', 2600, 4, '2023-06-26'],
+  ['Nadeem Akhtar', 'Pakistan', 'Dispatcher', 'Logistics', 3900, 3, '2022-03-07'],
+  ['Omar Farouk', 'Egypt', 'Senior Sales Executive', 'Sales', 9500, 2, '2018-12-02'],
+  ['Aisha Rahman', 'India', 'Sales Executive', 'Sales', 6500, 3, '2022-09-18'],
+  ['Daniel Mensah', 'Ghana', 'Key Account Manager', 'Sales', 11000, 2, '2020-02-10'],
+  ['Maria Gonzales', 'Philippines', 'Sales Coordinator', 'Sales', 4800, 3, '2024-04-15'],
+  ['Yousef Nasser', 'Jordan', 'Sales Executive', 'Sales', 6500, 3, '2025-06-01'],
+  ['Shreya Iyer', 'India', 'Payroll Officer', 'Finance', 7500, 2, '2021-01-11'],
+  ['Kevin D\'Souza', 'India', 'AP Accountant', 'Finance', 6200, 3, '2023-08-21'],
+  ['Hana Kim', 'South Korea', 'Procurement Officer', 'Operations', 8000, 2, '2022-11-14'],
+  ['Samir Haddad', 'Lebanon', 'Facilities Supervisor', 'Operations', 5600, 3, '2019-05-27'],
+  ['Ana Petrova', 'Bulgaria', 'Office Administrator', 'Operations', 4500, 3, '2024-09-02'],
+  ['Ali Hamdan', 'Syria', 'IT Support Specialist', 'Operations', 6000, 3, '2021-07-19'],
+  ['Zainab Yusuf', 'Sudan', 'Receptionist', 'Operations', 3800, 4, '2025-02-17'],
+  ['Ramesh Babu', 'India', 'Maintenance Technician', 'Operations', 3500, 4, '2016-03-30'],
+  ['Elena Rossi', 'Italy', 'Quality Lead', 'Operations', 9000, 2, '2023-01-09'],
+  ['Prakash Rai', 'Nepal', 'Security Guard', 'Operations', 2300, 5, '2020-08-05'],
+];
+const FZ_TEAM = [
+  ['Sara Al Mansoori', 'UAE', 'Regional Director', 'Management', 32000, 1, '2024-03-01', true],
+  ['James Whitfield', 'United Kingdom', 'Trading Manager', 'Trading', 26000, 1, '2024-05-12'],
+  ['Neha Kapoor', 'India', 'Trade Finance Analyst', 'Finance', 14000, 2, '2024-07-01'],
+  ['Wei Chen', 'China', 'Sourcing Manager', 'Trading', 18000, 2, '2025-01-15'],
+  ['Fiona Murphy', 'Ireland', 'Compliance Officer', 'Finance', 16000, 2, '2025-04-07'],
+  ['Ahmad Kassem', 'Lebanon', 'Logistics Analyst', 'Trading', 11000, 2, '2025-08-18'],
+];
 
 await mongoose.connect(config.mongoUri);
 console.log('Connected. Resetting demo data…');
@@ -60,11 +97,33 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     }));
   };
   for (const p of PEOPLE) await mk(p);
-  for (let k = 0; k < 28; k++) {
-    const [role, dept, skill, basic] = FILLER_ROLES[k % FILLER_ROLES.length];
-    const y = 2017 + (k % 9);
-    await mk([`Staff Member ${String(k + 1).padStart(2, '0')}`, null, role, dept, NATS[k % NATS.length], false, basic, Math.round(basic * 0.4), 400, `${y}-0${(k % 9) + 1}-1${k % 9}`, skill]);
+  for (const [name, nat, role, dept, basic, skill, join] of TEAM) {
+    await mk([name, null, role, dept, nat, false, basic, Math.round(basic * 0.4), basic >= 6000 ? 1000 : 400, join, skill]);
   }
+
+  // Second establishment: a DMCC free-zone entity (outside the MOHRE quota)
+  const fz = await Establishment.create({
+    name: 'Al Noor Global FZ-LLC', nameAr: 'النور جلوبال م.م.ح', jurisdiction: 'FREEZONE', freeZone: 'DMCC', rulePackId: 'UAE-MAINLAND', emirate: 'Dubai',
+    mohreId: '1000000058304', tradeLicenceNo: 'DMCC-209331', tradeLicenceExpiry: inDays(64), establishmentCardExpiry: inDays(91),
+    wps: { agentName: 'Mashreq', agentRoutingCode: '203320101' },
+  });
+  const fzEmps = [];
+  for (const [j, [name, nat, role, dept, basic, skill, join, uae]] of FZ_TEAM.entries()) {
+    fzEmps.push(await Employee.create({
+      establishmentId: fz._id, employeeNo: `ANG-${201 + j}`, fullName: name, jobTitle: role, department: dept, nationality: nat, isUaeNational: !!uae,
+      mohreSkillLevel: skill, joinDate: new Date(join), status: 'active', pensionRegistered: !!uae, paidViaWps: true,
+      compensation: { basicFils: toFils(basic), housingFils: toFils(Math.round(basic * 0.35)), transportFils: toFils(1500), effectiveFrom: new Date(join) },
+      bank: { iban: buildUaeIban('033', String(2020000000000000 + j * 5531)), routingCode: '203320101', bankName: 'Mashreq' },
+      labourCardNo: String(95821370000000 + j * 6113), emiratesIdLast4: String(2000 + j * 41).slice(-4),
+    }));
+  }
+  // A new joiner still onboarding (not in payroll yet)
+  await Employee.create({
+    establishmentId: est._id, employeeNo: 'ANT-150', fullName: 'Khalid Al Nuaimi', jobTitle: 'Sales Trainee', department: 'Sales', nationality: 'UAE', isUaeNational: true,
+    mohreSkillLevel: 3, joinDate: inDays(12), status: 'onboarding', pensionRegistered: false, paidViaWps: true,
+    compensation: { basicFils: toFils(5000), housingFils: toFils(2000), transportFils: toFils(800) },
+    custom: { onboarding: [['Entry permit', true], ['Medical fitness', true], ['EID biometrics', false], ['Health insurance', false], ['MOHRE contract', false], ['Bank IBAN', false]].map(([step, done]) => ({ step, done })) },
+  });
   const by = (n) => emps.find((e) => e.fullName === n);
 
   // A deliberately broken IBAN so WPS pre-flight has something to catch
@@ -90,13 +149,33 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     { ownerType: 'employee', employeeId: by('Layla Haddad')._id, docType: 'residence_visa', expiryDate: inDays(83) },
     { ownerType: 'establishment', establishmentId: est._id, docType: 'establishment_card', expiryDate: inDays(12) },
     { ownerType: 'establishment', establishmentId: est._id, docType: 'trade_licence', expiryDate: inDays(37) },
+    { ownerType: 'establishment', establishmentId: fz._id, docType: 'trade_licence', expiryDate: inDays(64) },
+    { ownerType: 'establishment', establishmentId: fz._id, docType: 'establishment_card', expiryDate: inDays(91) },
+    { ownerType: 'employee', employeeId: by('Priya Menon')._id, docType: 'residence_visa', expiryDate: inDays(-4) },
   ]);
+  // Spread more renewals across the next four months so the radar and week strip look like a real company
+  const docTypes = ['residence_visa', 'emirates_id', 'passport', 'labour_card', 'health_insurance', 'driving_licence'];
+  const spread = [3, 5, 11, 16, 22, 26, 31, 35, 41, 47, 52, 57, 63, 69, 74, 79, 88, 95, 103, 110, 117, 20, 9, 66];
+  const pool = [...emps.slice(10), ...fzEmps];
+  await ComplianceDocument.create(spread.map((d, i) => {
+    const e = pool[(i * 7) % pool.length];
+    const type = e.department === 'Logistics' && i % 2 ? 'driving_licence' : docTypes[i % 5];
+    return { ownerType: 'employee', employeeId: e._id, docType: type, expiryDate: inDays(d), ...(i % 6 === 2 ? { renewalCase: { status: 'in_progress', steps: [{ name: 'Collect documents', done: true }, { name: 'Submit application', done: false }] } } : {}) };
+  }));
 
   // Leave
   await LeaveRequest.create([
     { employeeId: by('Joseph Dela Cruz')._id, type: 'annual', startDate: inDays(8), endDate: inDays(10), days: 3 },
     { employeeId: by('Anil Kumar')._id, type: 'annual', startDate: inDays(8), endDate: inDays(11), days: 4 },
     { employeeId: by('Grace Okafor')._id, type: 'sick', startDate: inDays(1), endDate: inDays(1), days: 1 },
+    { employeeId: by('Hassan Raza')._id, type: 'annual', startDate: inDays(14), endDate: inDays(27), days: 14, reason: 'Family visit, Lahore' },
+    { employeeId: by('Aisha Rahman')._id, type: 'annual', startDate: inDays(20), endDate: inDays(24), days: 5, source: 'whatsapp' },
+    { employeeId: by('Omar Farouk')._id, type: 'parental', startDate: inDays(5), endDate: inDays(9), days: 5 },
+    { employeeId: by('Mohammed Rafiq')._id, type: 'annual', startDate: inDays(9), endDate: inDays(12), days: 4, source: 'mobile' },
+    { employeeId: by('Layla Haddad')._id, type: 'annual', startDate: inDays(-20), endDate: inDays(-16), days: 5, status: 'approved' },
+    { employeeId: by('Tariq Mahmood')._id, type: 'sick', startDate: inDays(-9), endDate: inDays(-8), days: 2, status: 'approved' },
+    { employeeId: by('Kevin D\'Souza')._id, type: 'unpaid', startDate: inDays(-40), endDate: inDays(-38), days: 3, status: 'rejected' },
+    { employeeId: by('Shreya Iyer')._id, type: 'hajj', startDate: inDays(60), endDate: inDays(80), days: 21, status: 'approved' },
   ]);
 
   // Payroll: last month (paid) and this month inputs
@@ -126,9 +205,27 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
     { employeeId: by('Ahmed Khan')._id, period: thisP, overtimeFils: 42000 },
     { employeeId: by('Grace Okafor')._id, period: thisP, overtimeFils: 126000 },
     { employeeId: by('Joseph Dela Cruz')._id, period: thisP, unpaidLeaveDays: 2 },
+    { employeeId: by('Hassan Raza')._id, period: thisP, overtimeFils: 38000 },
+    { employeeId: by('Tariq Mahmood')._id, period: thisP, overtimeFils: 54000 },
+    { employeeId: by('Bikash Gurung')._id, period: thisP, overtimeFils: 31000 },
+    { employeeId: by('Omar Farouk')._id, period: thisP, commissionFils: 280000 },
+    { employeeId: by('Daniel Mensah')._id, period: thisP, commissionFils: 410000 },
+    { employeeId: by('Aisha Rahman')._id, period: thisP, commissionFils: 95000 },
+    { employeeId: by('Mohammed Saleh')._id, period: thisP, expenseReimbursementFils: 64000 },
+    { employeeId: by('Sunil Perera')._id, period: thisP, loanInstallmentFils: 50000 },
+    { employeeId: by('Imran Shah')._id, period: thisP, unpaidLeaveDays: 1 },
   ]);
 
-  console.log(`Seeded ${emps.length} employees, establishment ${est.name}, periods ${prevP} (paid) and ${thisP} (inputs).`);
+  // A little history in the audit log
+  const admin = await User.findOne({ email: 'admin@alnoor.demo' });
+  await AuditLog.create([
+    { actorId: admin._id, actorType: 'user', action: 'payroll.approve', entity: 'PayrollRun', entityId: prevP, correlationId: 'seed-0001' },
+    { actorId: admin._id, actorType: 'user', action: 'wps.sif.export', entity: 'WpsSifBatch', entityId: prevP, correlationId: 'seed-0002' },
+    { actorId: admin._id, actorType: 'agent', action: 'agent.leave', entity: 'AgentRun', entityId: 'seed', correlationId: 'seed-0003' },
+    { actorId: admin._id, actorType: 'user', action: 'document.renewal.open', entity: 'ComplianceDocument', entityId: 'seed', correlationId: 'seed-0004' },
+  ]);
+
+  console.log(`Seeded ${emps.length + fzEmps.length + 1} employees across ${est.name} and ${fz.name}, periods ${prevP} (paid) and ${thisP} (inputs).`);
 });
 
 console.log(`\nSign in at http://localhost:${config.port}\n  admin@alnoor.demo   / ${PASSWORD}  (HR admin + payroll maker)\n  checker@alnoor.demo / ${PASSWORD}  (payroll checker)\n  manager@alnoor.demo / ${PASSWORD}  (line manager)`);
