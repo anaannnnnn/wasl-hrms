@@ -12,6 +12,7 @@ import security from './routes/security.js';
 import attendance from './routes/attendance.js';
 import employees360 from './routes/employees360.js';
 import workspace from './routes/workspace.js';
+import { mountPublic, mountExt } from './ext/index.js'; // extension modules (additive)
 
 export function createApp() {
   const app = express();
@@ -36,6 +37,7 @@ export function createApp() {
     crossOriginEmbedderPolicy: false,
   }));
   app.use(cors({ origin: config.corsOrigin }));
+  mountPublic(app); // extension: public/webhook/device/SSO endpoints + /api/v1 (need the raw body, so before the JSON parser)
   // Larger bodies only where files are uploaded (base64) or CSVs imported
   app.use(['/api/documents', '/api/import'], express.json({ limit: '12mb' }));
   app.use('/api/me/clock-in', express.json({ limit: '2mb' }));
@@ -50,6 +52,7 @@ export function createApp() {
   app.use('/api', attendance);
   app.use('/api', employees360);
   app.use('/api', workspace);
+  mountExt(app); // extension: payroll+, time+, people, talent, platform, AI v2
 
   if (config.serveWeb) {
     const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web');
