@@ -1,6 +1,6 @@
 // Wasl HRMS web client. Plain ES modules, no build step.
 import { translateTree } from './i18n.js';
-import { installExt, themeButton, wireThemeButton, accentRgb } from './ext.js';
+import { installExt, wireThemeButton, accentRgb } from './ext.js';
 import { navHtml, railHtml, pageHeadHtml, profileMenuHtml, wireShell } from './shell.js';
 const API = '/api';
 const $ = (s, el = document) => el.querySelector(s);
@@ -173,14 +173,13 @@ function shell() {
     $('#root').innerHTML = `<div class="app ${isStaffUser() ? '' : 'emp'}">
   <header class="topbar"><div class="topbar-in">
     <a class="brand" href="${isStaffUser() ? '/' : '/employee'}" aria-label="Wasl home"><span class="mark">W</span><span class="brand-txt"><b>Wasl</b><span class="by">by <img src="devx-logo-dark.png" alt="DevX Technologies"></span></span></a>
-    ${isStaffUser() ? navHtml(SH) : `<button class="iconbtn menubtn" id="menuBtn" aria-label="Open menu" aria-controls="sidenav" aria-expanded="false">${icon('M4 7h16M4 12h16M4 17h16', 20)}</button><div class="page-title">${esc(t(cur))}</div>`}
+    ${isStaffUser() ? navHtml(SH) : `${navHtml(SH)}<button class="iconbtn menubtn" id="menuBtn" aria-label="Open menu" aria-controls="sidenav" aria-expanded="false">${icon('M4 7h16M4 12h16M4 17h16', 20)}</button><div class="page-title">${esc(t(cur))}</div>`}
     <div class="actions">
       <div style="position:relative"><button class="iconbtn" id="bell" aria-label="Notifications" title="Notifications">${icon('M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0', 18)}<span id="bellCt" class="ct" hidden></span></button>
         <div id="bellPanel" class="panel popover" hidden></div></div>
-      ${isStaffUser() ? '' : themeButton(icon)}
-      ${isStaffUser() ? '' : `<button class="iconbtn txt" id="lb" title="Language">${t('lang')}</button>`}
+
       <div style="position:relative"><button class="avatarbtn" id="whoBtn" aria-haspopup="true" aria-expanded="false"><span class="av">${esc(ini(me.name))}</span><span class="who-txt"><b>${esc(me.name)}</b><small>${esc(isStaffUser() ? me.roles.map((r) => r.replace('_', ' ')).join(', ') : 'Employee')}</small></span></button>
-        <div id="whoMenu" class="panel popover ${isStaffUser() ? 'pmenu' : ''}" hidden style="width:${isStaffUser() ? 264 : 240}px">${isStaffUser() ? profileMenuHtml(SH) : `<div style="font-weight:600">${esc(me.name)}</div><div style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(me.email || '')}</div><button class="btn" id="so" style="width:100%">${t('signout')}</button>`}</div></div>
+        <div id="whoMenu" class="panel popover pmenu" hidden style="width:264px">${profileMenuHtml(SH)}</div></div>
     </div></div></header>
   ${isStaffUser() ? '' : `<aside class="sidenav" id="sidenav" aria-label="Main">
     <div class="sn-head"><span class="mark">W</span><div><b>Wasl</b><small>Employee app</small></div><button class="iconbtn sn-close" id="snClose" aria-label="Close menu">${icon('M6 6l12 12M18 6L6 18', 18)}</button></div>
@@ -188,9 +187,9 @@ function shell() {
     <nav class="sn-nav">${mods().map((m) => `<button class="nav ${m === cur ? 'on' : ''}" data-m="${m}">${icon(ICONS[m], 19)}<span>${t(m)}</span></button>`).join('')}</nav>
     <div class="sn-foot"><button class="btn" id="so2" style="width:100%">${t('signout')}</button><div class="powered"><span>POWERED BY</span><img src="devx-logo-dark.png" alt="DevX Technologies"></div></div>
   </aside><div class="scrim" id="scrim" hidden></div>`}
-  ${isStaffUser() ? railHtml(SH) : ''}
+  ${railHtml(SH)}
   <main>
-    ${isStaffUser() ? pageHeadHtml(SH) : ''}
+    ${pageHeadHtml(SH)}
     <div class="top"><form class="cmd" id="cf">${icon('M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z', 18)}<input id="cmd" autocomplete="off" placeholder="${esc(isStaffUser() ? t('ph') : 'Ask… e.g. I need a salary certificate for Emirates NBD')}"><button class="btn pri sm" type="submit">${t('run')}</button></form>
     ${isStaffUser() ? '<label class="sr" for="estSel">Entity</label><select id="estSel" class="btn" style="max-width:260px" title="Entity"></select>' : ''}</div>
     <div class="chips" id="chips" style="margin-bottom:18px"></div>
@@ -216,7 +215,7 @@ function shell() {
     const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.textContent = c; b.onclick = () => { $('#cmd').value = c; agent(c); }; $('#chips').appendChild(b);
   });
   if (!isStaffUser() || cur !== 'dash') $('#chips').hidden = true;
-  if (isStaffUser()) wireShell(SH);
+  wireShell(SH);
   translateTree($('#root'), L);
   wireThemeButton();
   loadBell();

@@ -13,7 +13,18 @@ export const GROUPS = [
   { key: 'insights', label: 'Insights', labelAr: 'التحليلات', mods: ['insights'] },
   { key: 'admin', label: 'Admin', labelAr: 'الإدارة', mods: ['platform', 'setup'] },
 ];
+export const EMP_GROUPS = [
+  { key: 'home', label: 'Home', labelAr: 'الرئيسية', mods: ['ehome'] },
+  { key: 'time', label: 'Time', labelAr: 'الوقت', mods: ['eclock', 'eshift', 'eleave', 'eaway'] },
+  { key: 'pay', label: 'Pay & services', labelAr: 'الرواتب والخدمات', mods: ['epay', 'eservices'] },
+  { key: 'req', label: 'Requests', labelAr: 'الطلبات', mods: ['ereq', 'edocs', 'etag'] },
+  { key: 'growth', label: 'Growth', labelAr: 'التطوير', mods: ['egrowth', 'ereflect'] },
+  { key: 'help', label: 'Assistant', labelAr: 'المساعد', mods: ['evoice', 'eai'] },
+];
 const DESC = {
+  ehome: 'Your day at a glance', eclock: 'Clock in and out with a selfie', eshift: 'Your roster and corrections', eleave: 'Apply and track leave', eaway: "Who's out on your team",
+  epay: 'Payslips as PDF', eservices: 'Expenses, loans, airfare, insurance, perks', ereq: 'Letters and HR requests', edocs: 'Your visa, ID and passport', etag: 'Your digital ID card',
+  egrowth: 'Goals, feedback, recognition, surveys', ereflect: 'Weekly wellbeing check-in', evoice: 'Speak in your language', eai: 'Ask HR anything',
   dash: 'Everything due today, ranked by risk', emp: 'Profiles, documents and contracts', people: 'Expenses, visas, insurance, assets', requests: 'Letters and employee requests', reflect: 'Wellbeing check-ins',
   attendance: 'Clock-ins, GPS and selfies', timeplus: 'Shifts, roster, holidays, corrections', leave: 'Requests and approvals', away: "Who's out this month",
   pay: 'Compute, approve and export WPS', payplus: 'Loans, overtime, airfare, journals', eosb: 'End-of-service calculator',
@@ -23,13 +34,14 @@ const DESC = {
 const store = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } } };
 let S; // context
 
-export const groupOf = (m) => GROUPS.find((g) => g.mods.includes(m));
+export const groupOf = (m) => GROUPS.find((g) => g.mods.includes(m)) || EMP_GROUPS.find((g) => g.mods.includes(m));
+const groupsFor = (ctx) => (ctx.isStaff() ? GROUPS : EMP_GROUPS);
 
 /** Top navigation markup. Only groups with at least one module the user may open are shown. */
 export function navHtml(ctx) {
   S = ctx; const allowed = new Set(ctx.mods());
   const cg = groupOf(ctx.cur)?.key;
-  return `<nav class="gnav" id="gnav" aria-label="Main"><span class="gpill" aria-hidden="true"></span>${GROUPS.filter((g) => g.mods.some((m) => allowed.has(m))).map((g) => {
+  return `<nav class="gnav" id="gnav" aria-label="Main"><span class="gpill" aria-hidden="true"></span>${groupsFor(ctx).filter((g) => g.mods.some((m) => allowed.has(m))).map((g) => {
     const mods = g.mods.filter((m) => allowed.has(m)); const single = mods.length === 1;
     const lbl = ctx.lang() === 'ar' ? g.labelAr : g.label;
     return `<div class="gitem" data-g="${g.key}"><button class="gbtn ${g.key === cg ? 'on' : ''}" ${single ? `data-m="${mods[0]}"` : `data-open="${g.key}" aria-haspopup="true" aria-expanded="false"`}>${ctx.esc(lbl)}<span class="gbadge" data-badge="${g.key}" hidden></span>${single ? '' : '<svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>'}</button>
@@ -71,9 +83,9 @@ export function railHtml(ctx) {
   return `<aside class="rail" aria-label="Tools">${b('rSearch', 'Search & jump (Ctrl K)', 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4')}${b('rAdd', 'Quick create', 'M12 5v14M5 12h14')}${b('rMode', dark ? 'Light mode' : 'Dark mode', dark ? 'M12 4V2M12 22v-2M4.9 4.9L3.5 3.5M20.5 20.5l-1.4-1.4M4 12H2M22 12h-2M4.9 19.1l-1.4 1.4M20.5 3.5l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z' : 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z')}<i class="rsep"></i>${b('rHelp', 'Help & shortcuts', 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v.01M12 13a2.5 2.5 0 1 0-2.5-2.5')}${b('rSet', 'Settings', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z')}</aside>`;
 }
 export function pageHeadHtml(ctx) {
-  const g = groupOf(ctx.cur); const est = ctx.estName() || 'Wasl';
+  const g = groupOf(ctx.cur); const est = ctx.isStaff() ? ctx.estName() || 'Wasl' : 'My workspace';
   const lbl = g ? (ctx.lang() === 'ar' ? g.labelAr : g.label) : '';
-  return `<div class="phead"><nav class="crumbs" aria-label="Breadcrumb"><span>${ctx.esc(est)}</span>${g && g.key !== 'home' ? `<i>›</i><span>${ctx.esc(lbl)}</span>` : ''}<i>›</i><b>${ctx.esc(ctx.t(ctx.cur))}</b></nav>
+  return `<div class="phead"><nav class="crumbs" aria-label="Breadcrumb"><span>${ctx.esc(est)}</span>${g && g.key !== 'home' && lbl !== ctx.t(ctx.cur) ? `<i>›</i><span>${ctx.esc(lbl)}</span>` : ''}<i>›</i><b>${ctx.esc(ctx.t(ctx.cur))}</b></nav>
     <div class="livepill" id="livePill"><span class="ldot"></span><b id="liveClock">--:--</b><span class="lsep"></span><span id="liveTxt" class="xmuted">Gulf Standard Time</span><span class="lbar"><i id="liveBar" style="width:0"></i></span></div></div>`;
 }
 export function profileMenuHtml(ctx) {
@@ -81,7 +93,7 @@ export function profileMenuHtml(ctx) {
   const it = (id, label, d, extra = '') => `<button class="pmi" ${id} role="menuitem">${ctx.icon(d, 16)}<span>${label}</span>${extra}</button>`;
   const check = '<svg class="ck" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-10"/></svg>';
   return `<div class="pm-head"><span class="av">${ctx.esc(ctx.ini(ctx.me().name))}</span><div><b>${ctx.esc(ctx.me().name)}</b><small>${ctx.esc(ctx.me().email || '')}</small></div></div>
-    ${it('data-go="setup"', 'Settings', 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4')}
+    ${ctx.isStaff() ? it('data-go="setup"', 'Settings', 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4') : it('data-go="etag"', 'My ID tag', 'M4 6h16v12H4zM8 10h3M8 14h5M15 10h2v4h-2z')}
     ${it('data-pm="keys"', 'Keyboard shortcuts', 'M4 6h16v12H4zM8 10h.01M12 10h.01M16 10h.01M8 14h8')}
     <i class="pm-sep"></i>
     ${[['light', 'Light', 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 2v2M12 20v2M2 12h2M20 12h2'], ['dark', 'Dark', 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'], ['auto', 'Match system', 'M7 3h10v18H7zM11 18h2']].map(([k, l, d]) => it(`data-mode="${k}"`, l, d, k === m ? check : '')).join('')}
@@ -95,6 +107,7 @@ function palette(ctx, mode = 'search') {
   const allowed = ctx.mods();
   const actions = [
     ['Run payroll', 'pay'], ['Approve leave', 'leave'], ['New loan or fine', 'payplus'], ['Plan a hire with the AI agent', 'talent'], ['Upload a document', 'docs'], ['Paint the roster', 'timeplus'], ['Export a report', 'platform'], ['Check Emiratisation quota', 'emi'],
+    ['Clock in', 'eclock'], ['Apply for leave', 'eleave'], ['New expense claim', 'eservices'], ['Request a letter', 'ereq'], ['Download a payslip', 'epay'], ['Ask the voice assistant', 'evoice'], ['Thank a colleague', 'egrowth'],
   ].filter(([, m]) => allowed.includes(m));
   const items = mode === 'add' ? actions.map(([l, m]) => ({ l, m, d: ctx.t(m) })) : allowed.map((m) => ({ l: ctx.t(m), m, d: DESC[m] || '' })).concat(actions.map(([l, m]) => ({ l, m, d: ctx.t(m) })));
   const el = document.createElement('div'); el.className = 'sheet cpal-wrap';
@@ -160,7 +173,7 @@ export function wireShell(ctx) {
   if ($('rSearch')) {
     $('rSearch').onclick = () => palette(ctx, 'search'); $('rAdd').onclick = () => palette(ctx, 'add');
     $('rMode').onclick = () => { const dark = document.documentElement.dataset.mode === 'dark'; store.set('wasl_mode', dark ? 'light' : 'dark'); applyTheme(); ctx.rerender(); };
-    $('rHelp').onclick = () => shortcuts(ctx); $('rSet').onclick = () => ctx.go('setup');
+    $('rHelp').onclick = () => shortcuts(ctx); $('rSet').onclick = () => ctx.go(ctx.isStaff() ? 'setup' : 'ehome');
   }
   // profile menu
   const pm = $('whoMenu');
@@ -186,12 +199,19 @@ export function wireShell(ctx) {
     $('liveTxt').innerHTML = `<b style="color:var(--ink)">${on} of ${c.total} at work</b><small>${ok} on time · ${c.late} late · ${c.leave} on leave</small>`;
     $('liveBar').style.width = `${Math.round((on / c.total) * 100)}%`;
   }).catch(() => {});
+  if (!ctx.isStaff()) ctx.api('/me/attendance/today').then((d) => {
+    const r = d?.record; if (!$('liveTxt')) return;
+    const fmt = (x) => new Date(x).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' });
+    const first = r?.sessions?.[0]?.clockIn?.at || r?.clockIn?.at;
+    $('liveTxt').innerHTML = first ? `<b style="color:var(--ink)">${r.open ? 'On shift' : 'Shift complete'}</b><small>In at ${fmt(first)}${r.lateMinutes ? ` · ${r.lateMinutes} min late` : ' · on time'}</small>` : '<b style="color:var(--ink)">Not clocked in</b><small>Time › Attendance to start</small>';
+    const worked = r?.minutesWorked || 0; $('liveBar').style.width = `${Math.min(100, Math.round((worked / 480) * 100))}%`;
+  }).catch(() => {});
   loadBadges(ctx);
   // keyboard shortcuts
   if (!keysBound) {
     keysBound = true; let gPrefix = 0;
     document.addEventListener('keydown', (e) => {
-      if (!S?.isStaff()) return;
+      if (!S) return;
       const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); palette(S, 'search'); return; }
       if (typing || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('.sheet')) return;
@@ -199,7 +219,7 @@ export function wireShell(ctx) {
       else if (e.key === 'n') palette(S, 'add');
       else if (e.key === 'D' && e.shiftKey) document.getElementById('rMode')?.click();
       else if (e.key === 'g') gPrefix = Date.now();
-      else if (Date.now() - gPrefix < 900) { const m = { p: 'pay', e: 'emp', d: 'dash', l: 'leave', a: 'attendance' }[e.key]; if (m) S.go(m); gPrefix = 0; }
+      else if (Date.now() - gPrefix < 900) { const m = (S.isStaff() ? { p: 'pay', e: 'emp', d: 'dash', l: 'leave', a: 'attendance' } : { p: 'epay', d: 'ehome', l: 'eleave', a: 'eclock', e: 'eservices' })[e.key]; if (m) S.go(m); gPrefix = 0; }
     });
   }
 }
@@ -207,6 +227,11 @@ export function wireShell(ctx) {
 async function loadBadges(ctx) {
   const set = (key, n) => document.querySelectorAll(`[data-badge="${key}"]`).forEach((b) => { b.hidden = !n; b.textContent = n > 99 ? '99+' : n; });
   const safe = (p) => ctx.api(p).catch(() => null);
+  if (!ctx.isStaff()) {
+    const [sv, rv] = await Promise.all([safe('/me/surveys'), safe('/me/reviews')]);
+    const g = (Array.isArray(sv) ? sv.filter((x) => !x.answered).length : 0) + (Array.isArray(rv) ? rv.filter((x) => !x.submitted).length : 0);
+    set('m:egrowth', g); set('growth', g); return;
+  }
   const [ws, exp, disp, req] = await Promise.all([safe('/workspace'), safe('/expenses?status=submitted'), safe('/attendance/disputes'), ctx.has('hr_admin') ? safe('/requests') : null]);
   const leave = ws?.counts?.pendingLeave || 0, apps = ws?.counts?.openApplicants || 0;
   const expN = Array.isArray(exp) ? exp.length : 0, dispN = Array.isArray(disp) ? disp.length : 0;

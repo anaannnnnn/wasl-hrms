@@ -1,10 +1,10 @@
 /* Wasl HRMS — professional staff shell (grouped nav, tool rail, breadcrumbs, live pill, menus).
-   Only applies to staff (body without .empmode); the employee app keeps its side drawer. */
-body:not(.empmode) .topbar{padding-top:18px}
-body:not(.empmode) .topbar-in{background:transparent;border:0;box-shadow:none;backdrop-filter:none;padding:0;gap:20px;max-width:1440px}
-body:not(.empmode) .topbar{background:linear-gradient(var(--bg) 62%,transparent)}
-body:not(.empmode) .brand .mark{border-radius:14px;flex-basis:42px;height:42px;background:var(--black);font-size:18px}
-body:not(.empmode) .brand-txt b{font-size:19px}
+   Shared by HR and employees; on phones the employee app keeps its slide-out drawer. */
+.topbar{padding-top:18px}
+.topbar-in{background:transparent;border:0;box-shadow:none;backdrop-filter:none;padding:0;gap:20px;max-width:1440px}
+.topbar{background:linear-gradient(var(--bg) 62%,transparent)}
+.brand .mark{border-radius:14px;flex-basis:42px;height:42px;background:var(--black);font-size:18px}
+.brand-txt b{font-size:19px}
 
 /* grouped navigation */
 .gnav{position:relative;flex:1;min-width:0;display:flex;justify-content:center;align-items:center;gap:2px;margin:0 auto;max-width:max-content;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px;box-shadow:var(--shadow)}
@@ -30,10 +30,10 @@ body:not(.empmode) .brand-txt b{font-size:19px}
 .gmi small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
 
 /* actions */
-body:not(.empmode) .actions .iconbtn{width:44px;height:44px;box-shadow:var(--shadow)}
-body:not(.empmode) .avatarbtn{padding:3px;border:0;background:transparent}
-body:not(.empmode) .avatarbtn .av{width:44px;height:44px;font-size:14px;background:var(--accent-soft);color:var(--accent-ink);border:2px solid var(--surface);box-shadow:var(--shadow)}
-body:not(.empmode) .who-txt{display:none}
+.actions .iconbtn{width:44px;height:44px;box-shadow:var(--shadow)}
+.avatarbtn{padding:3px;border:0;background:transparent}
+.avatarbtn .av{width:44px;height:44px;font-size:14px;background:var(--accent-soft);color:var(--accent-ink);border:2px solid var(--surface);box-shadow:var(--shadow)}
+.who-txt{display:none}
 
 /* profile menu */
 .pmenu{padding:8px!important}
@@ -59,10 +59,10 @@ body:not(.empmode) .who-txt{display:none}
 .rsep{display:block;width:26px;height:1px;background:rgba(255,255,255,.18);margin:6px 0}
 @media (min-width:1200px){
   .rail{display:flex}
-  body:not(.empmode) main,body:not(.empmode) .topbar{padding-inline-start:max(108px,calc((100vw - 1440px) / 2))}
-  body:not(.empmode) main{max-width:none;padding-inline-end:max(28px,calc((100vw - 1440px) / 2 - 80px))}
-  body:not(.empmode) .topbar-in{max-width:none}
-  body:not(.empmode) .topbar{padding-inline-end:max(28px,calc((100vw - 1440px) / 2 - 80px))}
+  main,.topbar{padding-inline-start:max(108px,calc((100vw - 1440px) / 2))}
+  main{max-width:none;padding-inline-end:max(28px,calc((100vw - 1440px) / 2 - 80px))}
+  .topbar-in{max-width:none}
+  .topbar{padding-inline-end:max(28px,calc((100vw - 1440px) / 2 - 80px))}
 }
 
 /* page header: breadcrumbs + live pill */
@@ -79,15 +79,15 @@ body:not(.empmode) .who-txt{display:none}
 .lbar i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .6s}
 
 /* command bar row is slimmer on staff pages */
-body:not(.empmode) .top{margin-bottom:18px}
-body:not(.empmode) .cmd{padding:4px 4px 4px 16px}
-body:not(.empmode) main{padding-top:8px}
-body:not(.empmode) #view h1{font-size:clamp(30px,3vw,40px);letter-spacing:-.02em;margin:0}
-body:not(.empmode) #view .sub{margin-bottom:16px}
+.top{margin-bottom:18px}
+.cmd{padding:4px 4px 4px 16px}
+main{padding-top:8px}
+#view h1{font-size:clamp(30px,3vw,40px);letter-spacing:-.02em;margin:0}
+#view .sub{margin-bottom:16px}
 
 /* cards closer to a modern ERP look */
-body:not(.empmode) .panel{border-radius:24px}
-body:not(.empmode) .g4>.stat:nth-child(2){background:color-mix(in srgb,var(--black) 14%,var(--surface));border-color:transparent}
+.panel{border-radius:24px}
+.g4>.stat:nth-child(2){background:color-mix(in srgb,var(--black) 14%,var(--surface));border-color:transparent}
 .xkpis .xkpi:first-child{background:var(--black);color:var(--on-black);border-color:transparent}
 .xkpis .xkpi:first-child span{color:color-mix(in srgb,var(--on-black) 70%,transparent)}
 .xkpis .xkpi:nth-child(2){background:color-mix(in srgb,var(--black) 14%,var(--surface));border-color:transparent}
@@ -107,4 +107,20 @@ kbd{font-family:var(--f-mono);font-size:11px;border:1px solid var(--line-2);bord
 /* tighter desktop fit: below ~1320px the nav collapses labels gracefully */
 @media (max-width:1320px){.gbtn{padding:0 12px;font-size:14px}}
 @media (max-width:1100px){.gnav{justify-content:flex-start;overflow-x:auto;scrollbar-width:none;max-width:100%}.gnav::-webkit-scrollbar{display:none}.gmenu{position:fixed;top:78px;left:50%}.livepill .lbar,.livepill .lsep{display:none}}
-@media (max-width:720px){body:not(.empmode) .brand-txt{display:none}.livepill{display:none}}
+@media (max-width:720px){.brand-txt{display:none}.livepill{display:none}}
+
+/* employee app: same shell on desktop; the slide-out drawer stays for phones */
+.app.emp .menubtn,.app.emp .page-title{display:none}
+@media (min-width:961px){
+  .app.emp .sidenav,.app.emp .scrim{display:none!important}
+  .app.emp .topbar,.app.emp main{margin-inline-start:0;width:100%;align-self:auto}
+  .app.emp .topbar-in .brand{display:flex}
+  .app.emp main{max-width:none}
+}
+@media (max-width:960px){
+  .app.emp .gnav,.app.emp .phead{display:none}
+  .app.emp .menubtn{display:grid}
+  .app.emp .page-title{display:block}
+  .app.emp .topbar-in .brand{display:none}
+  .app.emp .topbar-in{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px;box-shadow:var(--shadow)}
+}
