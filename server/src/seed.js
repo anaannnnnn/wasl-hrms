@@ -4,6 +4,8 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { config } from './config.js';
 import { runAsSystem, runWithTenant } from './lib/tenantContext.js';
+import { seedExtDemo } from './ext/seedDemo.js';
+import * as ExtModels from './ext/models.js';
 import { Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, AuditLog, Notification, ServiceRequest, Attendance, Applicant, Task, CalendarEvent, Pulse } from './models/index.js';
 import { localParts } from './lib/attendance.js';
 import { buildUaeIban } from './lib/iban.js';
@@ -72,6 +74,7 @@ await runAsSystem(async () => {
   await Promise.all([Tenant, User, Establishment, Employee, ComplianceDocument, LeaveRequest, PayrollInput, PayrollRun, Notification, ServiceRequest, Attendance, Applicant, Task, CalendarEvent, Pulse].map((m) => m.deleteMany({})));
   await PayrollRun.syncIndexes().catch(() => {});
   await mongoose.connection.collection('auditlogs').deleteMany({});
+  for (const m of Object.values(ExtModels)) if (m?.deleteMany && m.modelName !== 'ExtState') await m.deleteMany({});
 });
 
 const tenant = await Tenant.create({ name: 'Al Noor Trading LLC', plan: 'growth' });
@@ -351,5 +354,7 @@ await runWithTenant({ tenantId: String(tenant._id) }, async () => {
   console.log(`Seeded ${emps.length + fzEmps.length + 1} employees across ${est.name} and ${fz.name}, periods ${prevP} (paid) and ${thisP} (inputs).`);
 });
 
+const extResult = await runWithTenant({ tenantId: String(tenant._id) }, () => seedExtDemo());
+console.log('Extension demo data:', JSON.stringify(extResult));
 console.log(`\nSign in at http://localhost:${config.port}\n  admin@alnoor.demo   / ${PASSWORD}  (HR admin + payroll maker)\n  checker@alnoor.demo / ${PASSWORD}  (payroll checker)\n  manager@alnoor.demo / ${PASSWORD}  (line manager)`);
 await mongoose.disconnect();
