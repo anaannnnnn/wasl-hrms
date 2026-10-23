@@ -92,7 +92,7 @@ function loginView() {
     } catch (err) { $('#le').textContent = err.message; }
   };
 }
-function signOut() { apiCache.clear(); token = null; me = null; localStorage.removeItem('wasl_token'); localStorage.removeItem('wasl_user'); loginView(); }
+function signOut() { window.waslFace?.reset(); apiCache.clear(); token = null; me = null; localStorage.removeItem('wasl_token'); localStorage.removeItem('wasl_user'); loginView(); }
 
 // ---------------- Pulse grid background ----------------
 const bg = { mx: -999, my: -999, raf: 0, rgb: accentRgb(), dark: document.documentElement.dataset.mode === 'dark' };

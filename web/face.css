@@ -32,3 +32,5 @@
 .fid-txt small{color:var(--muted);font-size:13px}
 .fid-btns{display:flex;gap:6px;flex-wrap:wrap}
 @media (max-width:560px){.fid-banner{flex-wrap:wrap}.fid-btns{width:100%}}
+.fid-intro{width:64px;height:64px;margin:4px auto 0;border-radius:18px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink)}
+.fid-intro svg{width:36px;height:36px}

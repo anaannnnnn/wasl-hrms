@@ -36,14 +36,13 @@ export function validateEnrollment(samples, threshold = DEFAULT_THRESHOLD) {
   const have = new Set(samples.map((s) => s.angle));
   const missing = ANGLES.filter((a) => !have.has(a));
   if (missing.length) errors.push(`Missing angles: ${missing.join(', ')}.`);
-  const fronts = samples.filter((s) => s.angle === 'front');
-  if (fronts.length) {
-    const limit = threshold * 1.3; // turned heads drift further from the front view than a re-scan does
-    for (const s of samples) {
-      if (s.angle === 'front') continue;
-      const d = Math.min(...fronts.map((f) => distance(f.descriptor, s.descriptor)));
-      if (d > limit) errors.push(`The ${s.angle} view does not look like the same person as the front view. Rescan in good light.`);
-    }
+  // Turned/tilted heads (and glasses at steep angles) drift from the front view, so each angle only has to be close
+  // to its nearest *other* sample — a second person would be far from all of them.
+  const limit = threshold * 1.5;
+  for (const [i, s] of samples.entries()) {
+    if (s.angle === 'front') continue;
+    const near = Math.min(...samples.filter((_, j) => j !== i).map((o) => distance(o.descriptor, s.descriptor)));
+    if (near > limit) errors.push(`The ${s.angle} view does not look like the same person as the others. Rescan in good light.`);
   }
   return { ok: !errors.length, errors };
 }
