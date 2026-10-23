@@ -14,6 +14,9 @@ export function compression(req, res, next) {
     res.removeHeader('content-length'); res.setHeader('content-encoding', 'gzip'); res.setHeader('vary', 'Accept-Encoding');
     gz = zlib.createGzip({ level: 6 });
     gz.on('data', (c) => write(c)); gz.on('end', () => end()); gz.on('error', () => end());
+    // Streams piped into res (express.static) pause when write() returns false and wait for 'drain' on res;
+    // the gzip stream is what fills up, so its drain must be re-emitted on res or large files hang forever.
+    gz.on('drain', () => res.emit('drain'));
   };
   res.write = (chunk, enc, cb) => { decide(); return gz ? gz.write(chunk, enc, cb) : write(chunk, enc, cb); };
   res.end = (chunk, enc, cb) => {
