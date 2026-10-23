@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { createApp } from './app.js';
 
 import { startScheduler } from './jobs/scheduler.js';
+import { initExt } from './ext/index.js'; // extension jobs + rule registry (additive)
 import { PayrollRun, Notification, Tenant, User, Attendance, Applicant } from './models/index.js';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -44,4 +45,5 @@ await Notification.syncIndexes().catch((e) => console.warn('Index sync (notifica
 // Attendance allows several sessions per day: replaces the old one-record-per-day unique index.
 await Attendance.syncIndexes().catch((e) => console.warn('Index sync (attendance):', e.message));
 startScheduler();
+await initExt();
 createApp().listen(config.port, () => console.log(`Wasl HRMS listening on http://localhost:${config.port}`));
