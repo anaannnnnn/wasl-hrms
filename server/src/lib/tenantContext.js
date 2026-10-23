@@ -6,10 +6,13 @@ import mongoose from 'mongoose';
 
 const als = new AsyncLocalStorage();
 
-export const runWithTenant = (ctx, fn) => als.run(ctx, fn);
+// A Mongoose Query/Aggregate only runs when awaited, which would be *after* als.run() returns and the context is
+// gone. So `runWithTenant(ctx, () => Model.find())` must start the query inside the context: call exec() here.
+const execInside = (r) => (r && typeof r.exec === 'function' && typeof r.then === 'function' ? r.exec() : r);
+export const runWithTenant = (ctx, fn) => als.run(ctx, () => execInside(fn()));
 export const currentTenant = () => als.getStore();
 // For seeding / platform jobs only. Never call from a request handler.
-export const runAsSystem = (fn) => als.run({ system: true }, fn);
+export const runAsSystem = (fn) => als.run({ system: true }, () => execInside(fn()));
 
 export function tenantPlugin(schema) {
   schema.add({ tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true } });

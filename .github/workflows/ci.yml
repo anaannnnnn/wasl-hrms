@@ -30,7 +30,14 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: Integration tests (tenant isolation, encryption, payroll end to end)
-        run: npm run test:integration
+        run: |
+          set -o pipefail
+          npm run test:integration 2>&1 | tee integration.log || {
+            # surface failures as annotations so they are readable without downloading logs
+            awk '/^not ok|^# Subtest|^    not ok/{p=1} p{print} /^  \.\.\.$|^    \.\.\.$/{if(p){print "@@END"};p=0}' integration.log > fails.txt || true
+            node -e "const t=require('fs').readFileSync('fails.txt','utf8').split('@@END').filter(x=>/not ok/.test(x)).slice(0,10);for(const b of t)console.log('::error title=integration::'+b.trim().slice(0,3500).replace(/%/g,'%25').replace(/\r/g,'').replace(/\n/g,'%0A'))"
+            exit 1
+          }
         env:
           MONGO_URI_TEST: mongodb://localhost:27017/wasl_ci
       - name: Dependency audit
