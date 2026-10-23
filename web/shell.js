@@ -224,13 +224,14 @@ export function wireShell(ctx) {
     $('liveTxt').innerHTML = `<b style="color:var(--ink)">${on} of ${c.total} at work</b><small>${ok} on time · ${c.late} late · ${c.leave} on leave</small>`;
     $('liveBar').style.width = `${Math.round((on / c.total) * 100)}%`;
   }).catch(() => {});
-  if (!ctx.isStaff()) ctx.api('/me/attendance/today').then((d) => {
+  const mine = () => ctx.api('/me/attendance/today', { fresh: true }).then((d) => {
     const r = d?.record; if (!$('liveTxt')) return;
     const fmt = (x) => new Date(x).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' });
     const first = r?.sessions?.[0]?.clockIn?.at || r?.clockIn?.at;
     $('liveTxt').innerHTML = first ? `<b style="color:var(--ink)">${r.open ? 'On shift' : 'Shift complete'}</b><small>In at ${fmt(first)}${r.lateMinutes ? ` · ${r.lateMinutes} min late` : ' · on time'}</small>` : '<b style="color:var(--ink)">Not clocked in</b><small>Time › Attendance to start</small>';
     const worked = r?.minutesWorked || 0; $('liveBar').style.width = `${Math.min(100, Math.round((worked / 480) * 100))}%`;
   }).catch(() => {});
+  window.waslRefreshLive = ctx.isStaff() ? null : mine; if (!ctx.isStaff()) mine();
   loadBadges(ctx);
   // keyboard shortcuts
   if (!keysBound) {

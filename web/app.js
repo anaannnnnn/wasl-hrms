@@ -1034,7 +1034,7 @@ function clockCardHtml(today, shift, site) {
   return `<div class="panel clockcard state-${state}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div><div class="lbl">${state === 'in' ? (sessions.length > 1 ? `On shift · session ${sessions.length}` : 'On shift') : state === 'done' ? 'Clocked out' : 'Not clocked in'}</div>
-        <div class="bigclock num" id="liveClock">--:--</div>
+        <div class="bigclock num" id="cardClock">--:--</div>
         <div style="color:var(--muted);font-size:13px">Shift ${esc(shift?.start || '08:00')}–${esc(shift?.end || '17:00')} · ${esc(site?.label || 'Work site')}</div></div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         ${state === 'out' ? `<button class="btn pri big-btn" id="ciBtn">${icon('M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM4 8h3l2-3h6l2 3h3v11H4z', 20)}<span>Clock in</span></button><span style="font-size:12px;color:var(--muted)">Selfie + location required</span>` : ''}
@@ -1050,7 +1050,7 @@ function clockCardHtml(today, shift, site) {
 }
 function wireClockCard(rec, refresh) {
   const tick = () => {
-    const el = document.getElementById('liveClock'); if (!el) return clearInterval(window.__clk);
+    const el = document.getElementById('cardClock'); if (!el) return clearInterval(window.__clk);
     el.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Dubai' });
     const w = document.getElementById('liveWorked');
     const curS = rec?.current || rec;
@@ -1059,6 +1059,7 @@ function wireClockCard(rec, refresh) {
   clearInterval(window.__clk); tick(); window.__clk = setInterval(tick, 1000);
   const ci = $('#ciBtn'); if (ci) ci.onclick = () => doClockIn(refresh);
   const co = $('#coBtn'); if (co) co.onclick = () => doClockOut(refresh);
+  window.waslRefreshLive?.(); // keep the header status pill in step with the card
 }
 
 Object.assign(views, {
