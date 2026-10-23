@@ -22,11 +22,11 @@ export function createApp() {
       useDefaults: false,
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", 'https://cdn.jsdelivr.net', "'wasm-unsafe-eval'"], // Face ID: face-api (TensorFlow.js) + WASM
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'], // inline style attributes are used for layout
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         imgSrc: ["'self'", 'data:', 'blob:'],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", 'https://cdn.jsdelivr.net'], // Face ID model weights
         frameSrc: ["'self'", 'blob:'],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
