@@ -2,6 +2,7 @@
 import { translateTree } from './i18n.js';
 import { installExt, wireThemeButton, accentRgb } from './ext.js';
 import { navHtml, railHtml, pageHeadHtml, profileMenuHtml, wireShell } from './shell.js';
+import './face.js';
 const API = '/api';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -29,7 +30,7 @@ const t = (k) => T[L][k] || T.en[k];
 // CACHE_MS reuse the answer. Any write (POST/PUT/PATCH/DELETE) clears the cache so screens never show stale data.
 const CACHE_MS = 20000; const apiCache = new Map();
 async function rawApi(path, opts = {}) {
-  const res = await fetch(API + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const res = await fetch(API + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(opts.headers || {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && path !== '/auth/login') { signOut(); throw new Error(data.error); }
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
@@ -1001,19 +1002,27 @@ function captureSelfie() {
 }
 
 async function doClockIn(after) {
-  const got = await captureSelfie();
-  if (!got) return;
-  const { photo, gps } = got;
+  // Face ID (when enrolled or required): the verification scan replaces the selfie step.
+  const face = window.waslFace ? await window.waslFace.gate('in') : undefined;
+  if (face === null) return;
+  let photo, gps;
+  if (face) { toast('Face verified · getting your location…'); photo = face.photo; gps = await getLocation(); } else {
+    const got = await captureSelfie();
+    if (!got) return;
+    ({ photo, gps } = got);
+  }
   try {
-    const r = await api('/me/clock-in', { method: 'POST', body: { photo, ...gps, device: navigator.userAgent.slice(0, 180) } });
+    const r = await api('/me/clock-in', { method: 'POST', body: { photo, ...gps, device: navigator.userAgent.slice(0, 180) }, headers: face ? { 'X-Face-Verification': face.verificationId } : {} });
     toast(r.message + (r.record.clockIn?.insideGeofence === false ? ' · outside the site, HR will review' : '') + (gps.gpsError ? ` · ${gps.gpsError}` : ''));
   } catch (e) { fail(e); }
   after();
 }
 async function doClockOut(after) {
+  const face = window.waslFace ? await window.waslFace.gate('out') : undefined;
+  if (face === null) return;
   toast('Getting your location…');
   const gps = await getLocation();
-  try { const r = await api('/me/clock-out', { method: 'POST', body: { ...gps, device: navigator.userAgent.slice(0, 180) } }); toast(r.message); } catch (e) { fail(e); }
+  try { const r = await api('/me/clock-out', { method: 'POST', body: { ...gps, device: navigator.userAgent.slice(0, 180) }, headers: face ? { 'X-Face-Verification': face.verificationId } : {} }); toast(r.message); } catch (e) { fail(e); }
   after();
 }
 
@@ -1099,7 +1108,8 @@ Object.assign(views, {
     const s = hist.summary;
     const months = Array.from({ length: 4 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - i); return d.toISOString().slice(0, 7); });
     V(`<div class="eyebrow">ATTENDANCE · ${esc(t0.date)}${t0.ramadan ? ' · RAMADAN HOURS' : ''}</div><h1>Clock <em>in &amp; out</em></h1>
-    <p class="sub">Clocking in takes a selfie and your GPS location; clocking out records your location. If you're away from the site (a delivery, say), clock in anyway: HR reviews it.</p>
+    <p class="sub">Clocking in checks your face (Face ID, or a selfie if it is not set up) and your GPS location; clocking out records your location. If you're away from the site (a delivery, say), clock in anyway: HR reviews it.</p>
+    <div id="faceSlot"></div>
     <div class="grid g2">
       <div id="clockSlot">${clockCardHtml(t0.record, t0.site?.shift, t0.site)}</div>
       <div class="panel"><h2>Where you clock in</h2>
@@ -1121,6 +1131,7 @@ Object.assign(views, {
       ${hist.records.map((a) => `<tr><td class="mono">${esc(a.date)}</td><td class="num">${fmtTime(a.clockIn?.at)}</td><td class="num">${fmtTime(a.clockOut?.at)}</td><td class="num">${hmFromMin(a.minutesWorked)}</td><td>${flagPills(a.flags) || '<span style="color:var(--muted)">On time</span>'}</td><td>${a.hasPhoto ? `<button class="btn sm" data-ph="${a._id}">Photo</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No attendance this month.</td></tr>'}
       </tbody></table></div><div id="phView"></div>`);
     wireClockCard(t0.record, () => views.eclock().catch(fail));
+    window.waslFace?.mountCard(document.getElementById('faceSlot'));
     document.querySelectorAll('.seg [data-m]').forEach((b) => (b.onclick = () => { localStorage.setItem('wasl_attmonth', b.dataset.m); views.eclock().catch(fail); }));
     document.querySelectorAll('[data-ph]').forEach((b) => (b.onclick = async () => { try { const r = await api(`/me/attendance/${b.dataset.ph}/photo`); $('#phView').innerHTML = `<div class="panel" style="margin-top:16px;max-width:360px"><h2>Clock-in photo</h2><img src="${r.photo}" alt="Clock-in photo" style="width:100%;border-radius:4px"></div>`; } catch (e) { fail(e); } }));
   },
@@ -1704,6 +1715,7 @@ Object.assign(views, { away: () => awayView(false), eaway: () => awayView(true),
 
 const SH = { mods: () => mods(), get cur() { return cur; }, lang: () => L, esc, icon, ICONS, t, ini, me: () => me, api, has, go, sheetForm, isStaff: () => isStaffUser(), estName: () => currentEst()?.name, signOut, toggleLang: () => { L = L === 'en' ? 'ar' : 'en'; localStorage.setItem('wasl_lang', L); shell(); }, rerender: () => shell() };
 const tenantId = () => { try { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).tid; } catch { return ''; } };
+window.waslFace?.init({ api, toast, esc });
 installExt({ views, STAFF_MODS, EMP_MODS, ICONS, T, api, V, esc, AED, toast, fail, has, pill, sheetForm, icon, fileToBase64, openFile, kv, currentEst, ests: () => ESTS, tenantId, translate: (el) => translateTree(el, L) });
 
 window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (token && mods().includes(m) && m !== cur) { cur = m; shell(); } });

@@ -22,7 +22,7 @@ export const EMP_GROUPS = [
   { key: 'help', label: 'Assistant', labelAr: 'المساعد', mods: ['evoice', 'eai'] },
 ];
 const DESC = {
-  ehome: 'Your day at a glance', eclock: 'Clock in and out with a selfie', eshift: 'Your roster and corrections', eleave: 'Apply and track leave', eaway: "Who's out on your team",
+  ehome: 'Your day at a glance', eclock: 'Clock in and out with Face ID', eshift: 'Your roster and corrections', eleave: 'Apply and track leave', eaway: "Who's out on your team",
   epay: 'Payslips as PDF', eservices: 'Expenses, loans, airfare, insurance, perks', ereq: 'Letters and HR requests', edocs: 'Your visa, ID and passport', etag: 'Your digital ID card',
   egrowth: 'Goals, feedback, recognition, surveys', ereflect: 'Weekly wellbeing check-in', evoice: 'Speak in your language', eai: 'Ask HR anything',
   dash: 'Everything due today, ranked by risk', emp: 'Profiles, documents and contracts', people: 'Expenses, visas, insurance, assets', requests: 'Letters and employee requests', reflect: 'Wellbeing check-ins',
