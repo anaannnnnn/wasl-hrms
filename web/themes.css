@@ -102,3 +102,14 @@
 #xbody .xrow input:not([type=checkbox]):not([type=radio]):not([type=file]),#xbody .xrow select,.xhead select,#view .xrow>input,#view .xrow>select,#view form.xrow input{font:inherit;font-size:14px;min-height:38px;padding:7px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);color:var(--ink)}
 #view .xrow input:focus,#view .xrow select:focus{outline:2px solid var(--accent);outline-offset:1px}
 :root[data-mode="dark"]:not([data-theme]),:root[data-mode="dark"][data-theme="classic"]{--black:#454a55}
+
+/* dark-mode versions of fixed pastel tags/timeline colours */
+:root[data-mode="dark"] .tag.t1{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent-ink)}
+:root[data-mode="dark"] .tag.t2{background:rgba(99,102,241,.18);color:#a5b4fc}
+:root[data-mode="dark"] .tag.t3{background:rgba(34,197,94,.16);color:#86efac}
+:root[data-mode="dark"] .tag.t4{background:rgba(234,179,8,.16);color:#fde68a}
+:root[data-mode="dark"] .tag.t5{background:rgba(168,85,247,.18);color:#d8b4fe}
+:root[data-mode="dark"] .tag.t6{background:rgba(6,182,212,.16);color:#67e8f9}
+:root[data-mode="dark"] .tl-bar.sick,:root[data-mode="dark"] .lg.sick{background:var(--bad-soft);color:var(--bad)}
+:root[data-mode="dark"] .tl-c.ho{background:rgba(168,85,247,.08)}
+:root[data-mode="dark"] .g4>.stat:first-child .meter i,:root[data-mode="dark"] .idcard-qr{background:#fff}

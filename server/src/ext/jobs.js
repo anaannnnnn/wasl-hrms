@@ -5,7 +5,7 @@ import { runAsSystem, runWithTenant } from '../lib/tenantContext.js';
 import { decryptField } from '../lib/fieldcrypt.js';
 import { localParts } from '../lib/attendance.js';
 import { notify } from '../lib/notify.js';
-import { Webhook, WebhookDelivery, PayrollInputSync, Loan, ExpenseClaim, SavedReport, ExportLog, RuleVersion, Dependent, ImmigrationCase, ExtState, Job } from './models.js';
+import { Webhook, WebhookDelivery, PayrollInputSync, Loan, ExpenseClaim, SavedReport, ExportLog, RuleVersion, Dependent, ImmigrationCase, ExtState, Job, ShiftTemplate } from './models.js';
 import { registerHandler, startWorker } from './lib/queue.js';
 import { signWebhook } from './lib/platform.js';
 import { registerApproved } from './lib/rulesRegistry.js';
@@ -125,6 +125,16 @@ export async function loadRuleRegistry() { const v = await runAsSystem(() => Rul
 // ---------------------------------------------------------------- start
 export async function initExtJobs() {
   await loadRuleRegistry().catch((e) => console.warn('Rule registry load:', e.message));
+  // Demo self-heal: the Al Noor demo company gets the extension demo data once (real tenants are never touched)
+  if (process.env.DEMO_AUTO_SEED !== 'false') {
+    try {
+      const demo = await runAsSystem(() => Tenant.findOne({ name: 'Al Noor Trading LLC' }).select('_id').lean());
+      if (demo && !(await runAsSystem(() => ShiftTemplate.exists({ tenantId: demo._id })))) {
+        const { seedExtDemo } = await import('./seedDemo.js');
+        console.log('Extension demo data:', JSON.stringify(await runWithTenant({ tenantId: String(demo._id) }, () => seedExtDemo())));
+      }
+    } catch (e) { console.warn('Extension demo seed skipped:', e.message); }
+  }
   ramadanTick();
   await runAsSystem(() => Promise.all([Job.syncIndexes(), ExtState.syncIndexes()])).catch(() => {});
   if (process.env.JOBS_ENABLED === 'false') return;

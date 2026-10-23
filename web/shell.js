@@ -79,8 +79,21 @@ function placePill(animate) {
 // ---------------------------------------------------------------- rail, page head, menus, palette
 export function railHtml(ctx) {
   const dark = document.documentElement.dataset.mode === 'dark';
-  const b = (id, label, d) => `<button class="rbtn" id="${id}" aria-label="${label}" title="${label}">${ctx.icon(d, 18)}</button>`;
-  return `<aside class="rail" aria-label="Tools">${b('rSearch', 'Search & jump (Ctrl K)', 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4')}${b('rAdd', 'Quick create', 'M12 5v14M5 12h14')}${b('rMode', dark ? 'Light mode' : 'Dark mode', dark ? 'M12 4V2M12 22v-2M4.9 4.9L3.5 3.5M20.5 20.5l-1.4-1.4M4 12H2M22 12h-2M4.9 19.1l-1.4 1.4M20.5 3.5l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z' : 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z')}<i class="rsep"></i>${b('rHelp', 'Help & shortcuts', 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v.01M12 13a2.5 2.5 0 1 0-2.5-2.5')}${b('rSet', 'Settings', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z')}</aside>`;
+  const b = (id, label, d, i) => `<button class="rbtn" id="${id}" data-label="${label}" aria-label="${label}" style="--i:${i}">${ctx.icon(d, 21)}</button>`;
+  return `<aside class="rail" id="rail" aria-label="Tools"><span class="rhl" aria-hidden="true"></span>
+    ${b('rSearch', 'Search  ·  Ctrl K', 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4', 0)}
+    ${b('rAdd', 'Quick create  ·  N', 'M12 5v14M5 12h14', 1)}
+    ${b('rTheme', 'Colours & appearance', 'M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.8-.5-1.1-.3-.3-.5-.7-.5-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.6 17 3 12 3zM7.5 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM10.5 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2z', 2)}
+    ${b('rMode', dark ? 'Light mode  ·  Shift D' : 'Dark mode  ·  Shift D', dark ? 'M12 4V2M12 22v-2M4.9 4.9L3.5 3.5M20.5 20.5l-1.4-1.4M4 12H2M22 12h-2M4.9 19.1l-1.4 1.4M20.5 3.5l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z' : 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z', 3)}
+    <i class="rsep"></i>
+    ${b('rHelp', 'Shortcuts & help', 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v.01M12 13a2.5 2.5 0 1 0-2.5-2.5', 4)}
+    ${b('rSet', ctx.isStaff() ? 'Settings' : 'My ID tag', ctx.isStaff() ? 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4' : 'M4 6h16v12H4zM8 10h3M8 14h5M15 10h2v4h-2z', 5)}
+    <div class="rpop panel" id="rPop" hidden></div></aside>`;
+}
+function themePanel(ctx) {
+  const t = store.get('wasl_theme', 'classic'), m = store.get('wasl_mode', 'light');
+  return `<h4>Colour theme</h4><div class="rsw">${THEMES.map(([k, l, p, a]) => `<button class="rsw-b ${k === t ? 'on' : ''}" data-theme="${k}" aria-pressed="${k === t}"><i style="background:linear-gradient(135deg,${p} 55%,${a} 55%)"></i><span>${l}</span></button>`).join('')}</div>
+    <h4>Appearance</h4><div class="seg rseg" role="group" aria-label="Appearance">${[['light', 'Light'], ['dark', 'Dark'], ['auto', 'System']].map(([k, l]) => `<button data-mode="${k}" class="${k === m ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 }
 export function pageHeadHtml(ctx) {
   const g = groupOf(ctx.cur); const est = ctx.isStaff() ? ctx.estName() || 'Wasl' : 'My workspace';
@@ -172,8 +185,20 @@ export function wireShell(ctx) {
   const $ = (id) => document.getElementById(id);
   if ($('rSearch')) {
     $('rSearch').onclick = () => palette(ctx, 'search'); $('rAdd').onclick = () => palette(ctx, 'add');
-    $('rMode').onclick = () => { const dark = document.documentElement.dataset.mode === 'dark'; store.set('wasl_mode', dark ? 'light' : 'dark'); applyTheme(); ctx.rerender(); };
-    $('rHelp').onclick = () => shortcuts(ctx); $('rSet').onclick = () => ctx.go(ctx.isStaff() ? 'setup' : 'ehome');
+    $('rMode').onclick = () => { const dark = document.documentElement.dataset.mode === 'dark'; store.set('wasl_mode', dark ? 'light' : 'dark'); applyTheme(); syncThemeUi(ctx); };
+    $('rHelp').onclick = () => shortcuts(ctx); $('rSet').onclick = () => ctx.go(ctx.isStaff() ? 'setup' : 'etag');
+    const pop = $('rPop'); const paintPop = () => { pop.innerHTML = themePanel(ctx); };
+    $('rTheme').onclick = (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; if (!pop.hidden) paintPop(); };
+    pop.onclick = (e) => {
+      e.stopPropagation(); const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.theme) store.set('wasl_theme', b.dataset.theme);
+      if (b.dataset.mode) store.set('wasl_mode', b.dataset.mode);
+      applyTheme(); paintPop(); syncThemeUi(ctx);
+    };
+    document.addEventListener('click', () => { if (pop) pop.hidden = true; });
+    const rail = $('rail'); const hl = rail.querySelector('.rhl');
+    rail.querySelectorAll('.rbtn').forEach((x) => { x.onmouseenter = () => { hl.style.transform = `translateY(${x.offsetTop}px)`; hl.style.opacity = '1'; }; x.onfocus = x.onmouseenter; });
+    rail.onmouseleave = () => { hl.style.opacity = '0'; };
   }
   // profile menu
   const pm = $('whoMenu');
@@ -182,8 +207,8 @@ export function wireShell(ctx) {
       e.stopPropagation();
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.go) { pm.hidden = true; ctx.go(b.dataset.go); }
-      if (b.dataset.mode) { store.set('wasl_mode', b.dataset.mode); applyTheme(); pm.innerHTML = profileMenuHtml(ctx); }
-      if (b.dataset.theme) { store.set('wasl_theme', b.dataset.theme); applyTheme(); pm.innerHTML = profileMenuHtml(ctx); }
+      if (b.dataset.mode) { store.set('wasl_mode', b.dataset.mode); applyTheme(); pm.innerHTML = profileMenuHtml(ctx); syncThemeUi(ctx); }
+      if (b.dataset.theme) { store.set('wasl_theme', b.dataset.theme); applyTheme(); pm.innerHTML = profileMenuHtml(ctx); syncThemeUi(ctx); }
       if (b.dataset.pm === 'keys') { pm.hidden = true; shortcuts(ctx); }
       if (b.dataset.pm === 'lang') ctx.toggleLang();
       if (b.dataset.pm === 'out') ctx.signOut();
@@ -239,4 +264,11 @@ async function loadBadges(ctx) {
   set('m:leave', leave); set('m:timeplus', dispN); set('time', leave + dispN);
   set('m:people', expN); set('m:requests', reqN); set('people', expN + reqN);
   set('m:ats', apps); set('talent', apps);
+}
+
+/** After a theme change: swap the rail's mode icon/label and repaint canvas-based visuals (no page reload needed). */
+function syncThemeUi(ctx) {
+  const dark = document.documentElement.dataset.mode === 'dark'; const b = document.getElementById('rMode');
+  if (b) { b.innerHTML = ctx.icon(dark ? 'M12 4V2M12 22v-2M4.9 4.9L3.5 3.5M20.5 20.5l-1.4-1.4M4 12H2M22 12h-2M4.9 19.1l-1.4 1.4M20.5 3.5l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z' : 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z', 21); const l = dark ? 'Light mode  ·  Shift D' : 'Dark mode  ·  Shift D'; b.dataset.label = l; b.setAttribute('aria-label', l); }
+  requestAnimationFrame(() => placePill(false));
 }
