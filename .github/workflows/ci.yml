@@ -30,7 +30,13 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: Integration tests (tenant isolation, encryption, payroll end to end)
-        run: npm run test:integration
+        run: |
+          set -o pipefail
+          npm run test:integration 2>&1 | tee integration.log || {
+            # surface failures as annotations so they are readable without downloading logs
+            grep -nE "not ok|Error|AssertionError|expected|actual|at .*test\.js" integration.log | head -40 | sed 's/^/::error title=integration::/'
+            exit 1
+          }
         env:
           MONGO_URI_TEST: mongodb://localhost:27017/wasl_ci
       - name: Dependency audit
