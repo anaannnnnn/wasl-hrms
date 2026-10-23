@@ -162,6 +162,21 @@ export const LivenessCheck = tenantModel('LivenessCheck', new Schema({
   method: String, detail: String, attendanceDate: String, expiresAt: Date, usedAt: Date,
 }, { timestamps: true }));
 
+// Face attendance: multi-angle enrollment (128-number descriptors only, no photos) and per-punch verifications.
+export const FaceProfile = tenantModel('FaceProfile', new Schema({
+  employeeId: { type: Id, ref: 'Employee', required: true },
+  samples: { type: [{ angle: String, descriptor: [Number], _id: false }], select: false },
+  angles: [String], enrolledAt: Date, enrolledBy: Id, active: { type: Boolean, default: true },
+  lastVerifiedAt: Date, verifications: { type: Number, default: 0 }, failures: { type: Number, default: 0 },
+}, { timestamps: true }), [[{ tenantId: 1, employeeId: 1 }, { unique: true }]]);
+
+export const FaceVerification = tenantModel('FaceVerification', new Schema({
+  employeeId: { type: Id, ref: 'Employee', required: true }, direction: { type: String, enum: ['in', 'out'] },
+  passed: Boolean, score: Number, confidence: Number, live: Boolean, liveness: Schema.Types.Mixed,
+  otherEmployeeId: { type: Id, ref: 'Employee' }, reasons: [String], device: String,
+  expiresAt: Date, usedAt: Date, attendanceDate: String,
+}, { timestamps: true }), [[{ tenantId: 1, employeeId: 1, createdAt: -1 }]]);
+
 // ======================= Expenses, insurance & perks =======================
 export const ExpenseClaim = tenantModel('ExpenseClaim', new Schema({
   employeeId: { type: Id, ref: 'Employee', required: true },
@@ -377,6 +392,7 @@ export const FeatureSettings = tenantModel('FeatureSettings', new Schema({
   agentRequiresApproval: { type: [String], default: ['hire', 'payroll', 'termination', 'wps_export', 'visa', 'salary_change'] },
   copilotLanguages: { type: [String], default: ['en', 'ar', 'hi', 'ml', 'ur', 'tl'] },
   feeSchedule: Schema.Types.Mixed, // visa/insurance cost assumptions for forecasting
+  faceAttendance: { required: { type: Boolean, default: false }, threshold: { type: Number, default: 0.5 } },
 }, { timestamps: true }));
 
 export const CopilotMessage = tenantModel('CopilotMessage', new Schema({
@@ -397,7 +413,7 @@ export const ExtState = mongoose.models.ExtState || model('ExtState', new Schema
 
 export const EXT_MODELS = {
   Loan, AirfarePolicy, AirfareAccount, AirfareRequest, AccountMapping, BankRejection, PayrollPolicy, FxRate, PayrollInputSync,
-  ShiftTemplate, RosterEntry, PublicHoliday, RamadanPeriod, AttendanceDispute, OvertimeApproval, AttendanceDevice, DevicePunch, LivenessCheck,
+  ShiftTemplate, RosterEntry, PublicHoliday, RamadanPeriod, AttendanceDispute, OvertimeApproval, AttendanceDevice, DevicePunch, LivenessCheck, FaceProfile, FaceVerification,
   ExpenseClaim, InsurancePolicy, InsuranceMember, BenefitRequest, Perk, GradeBand, JobRequisition, CandidateProfile, Offer,
   Goal, Review, Recognition, Announcement, Survey, SurveyResponse, ImmigrationCase, Dependent, CompanyAsset, AssetRequest,
   SavedReport, ApiKey, IdempotencyRecord, Webhook, WebhookDelivery, Connector, Job, RuleVersion, FeatureSettings, CopilotMessage, ExportLog, SealedDocument,

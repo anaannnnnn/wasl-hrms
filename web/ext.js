@@ -248,7 +248,7 @@ async function payplus() {
 // ======================================================================= TIME & ROSTER
 const weekStart = (d) => { const x = new Date(`${d}T00:00:00Z`); const wd = (x.getUTCDay() + 6) % 7; return addDays(d, -wd); };
 async function timeplus() {
-  return screen('timeplus', 'Time & roster', 'Shift templates, the roster, holidays, corrections and attendance devices.', [
+  return screen('timeplus', 'Time & roster', 'Shift templates, the roster, holidays, corrections, Face ID and attendance devices.', [
     ['roster', 'Roster', async (el, reload) => {
       const from = store.get('wasl_roster_from', weekStart(today())); const to = addDays(from, 13);
       const d = await C.api(`/roster?from=${from}&to=${to}${estId() ? `&establishmentId=${estId()}` : ''}`);
@@ -309,6 +309,23 @@ async function timeplus() {
       el.innerHTML = `<div class="xgrid">${panel('Correction requests', table([['Employee', (x) => H(x.employeeId?.fullName)], ['Date', (x) => H(x.date)], ['Request', (x) => `${H(x.kind.replace(/_/g, ' '))}${x.requestedIn ? ` · in ${H(x.requestedIn)}` : ''}${x.requestedOut ? ` · out ${H(x.requestedOut)}` : ''}<div class="xmuted">${H(x.reason)}</div>`], ['', (x) => btn('Approve', 'dec', `data-id="${x._id}" data-d="approved"`) + ' ' + btn('Reject', 'dec', `data-id="${x._id}" data-d="rejected"`)]], disp, { empty: 'No open correction requests.' }))}
         ${panel('Missed clock-outs (last 14 days)', table([['Employee', (x) => H(x.employee?.fullName)], ['Date', (x) => H(x.date)], ['Clocked in', (x) => (x.clockIn ? new Date(x.clockIn).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : '')]], missed, { empty: 'No missed punches.' }))}</div>`;
       on(el, { dec: (d) => formSheet(d.d === 'approved' ? 'Approve correction' : 'Reject correction', [...(d.d === 'approved' ? [{ k: 'clockIn', label: 'Clock in (optional override)', type: 'time' }, { k: 'clockOut', label: 'Clock out (optional override)', type: 'time' }] : []), { k: 'note', label: 'Note to the employee', full: true }], async (v) => { await C.api(`/attendance/disputes/${d.id}/decision`, { method: 'POST', body: { decision: d.d, ...v } }); C.toast('Done. The employee can see the change.'); reload(); }, d.d === 'approved' ? 'Approve' : 'Reject') });
+    }],
+    ['face', 'Face ID', async (el, reload) => {
+      if (!isHR()) { el.innerHTML = panel('Face ID', '<p class="xmuted">Only HR can manage Face ID.</p>'); return; }
+      const d = await C.api('/attendance/face', { fresh: true });
+      const pass = d.recent.filter((x) => x.passed).length, failed = d.recent.length - pass;
+      const buddy = d.recent.filter((x) => x.otherEmployeeId).length;
+      el.innerHTML = `<div class="xkpis"><div class="xkpi"><b>${d.profiles.length}<small style="font-size:13px;color:var(--muted)"> / ${d.activeEmployees}</small></b><span>Employees enrolled</span></div>
+        <div class="xkpi"><b>${pass}</b><span>Verified punches (latest 200)</span></div><div class="xkpi"><b>${failed}</b><span>Failed scans</span></div><div class="xkpi"><b style="color:${buddy ? 'var(--bad)' : 'inherit'}">${buddy}</b><span>Possible buddy punching</span></div></div>
+        <div class="xgrid">${panel('Settings', `<div class="xrow"><label class="xrow" style="gap:8px"><input type="checkbox" id="fReq" ${d.settings.required ? 'checked' : ''}> Require Face ID for every clock-in and clock-out</label></div>
+          <div class="xrow" style="margin-top:10px"><span class="xmuted">Match strictness</span><select id="fThr">${[[0.42, 'Strict'], [0.5, 'Balanced (recommended)'], [0.56, 'Lenient']].map(([v, l]) => `<option value="${v}" ${Math.abs(d.settings.threshold - v) < 0.01 ? 'selected' : ''}>${l}</option>`).join('')}</select>${btn('Save', 'save', '', 'pri sm')}</div>
+          <p class="xmuted" style="margin:10px 0 0">Employees enroll from their own login (Attendance → Set up Face ID) with a 360° scan on any phone or laptop camera. Only a numeric face signature is stored, never images. When required, employees who have not enrolled are asked to do it at their next clock-in.</p>`)}
+        ${panel('Enrolled employees', table([['Employee', (x) => `${H(x.employeeId?.fullName || '')} <span class="xmuted">${H(x.employeeId?.employeeNo || '')}</span>`], ['Enrolled', (x) => (x.enrolledAt ? new Date(x.enrolledAt).toLocaleDateString('en-GB') : '')], ['Angles', (x) => H((x.angles || []).join(', '))], ['Verified', (x) => H(x.verifications || 0)], ['Failed', (x) => H(x.failures || 0)], ['Last used', (x) => (x.lastVerifiedAt ? new Date(x.lastVerifiedAt).toLocaleString('en-GB') : '—')], ['', (x) => btn('Reset', 'reset', `data-id="${x.employeeId?._id || x.employeeId}"`)]], d.profiles, { empty: 'Nobody has enrolled yet.' }))}
+        ${panel('Recent scans', table([['Employee', (x) => H(x.employeeId?.fullName || '')], ['When', (x) => new Date(x.createdAt).toLocaleString('en-GB')], ['Punch', (x) => H(x.direction === 'out' ? 'Clock out' : 'Clock in')], ['Result', (x) => st(x.passed ? 'pass' : 'failed')], ['Match', (x) => `${H(x.confidence ?? '')}%`], ['Detail', (x) => `<span class="xmuted">${H(x.otherEmployeeId ? `Matched ${x.otherEmployeeId.fullName}` : (x.reasons || []).join(' '))}${x.passed && !x.usedAt ? ' · not used' : ''}</span>`]], d.recent, { empty: 'No scans yet.' }))}</div>`;
+      on(el, {
+        save: async () => { await C.api('/attendance/face/settings', { method: 'PUT', body: { required: el.querySelector('#fReq').checked, threshold: Number(el.querySelector('#fThr').value) } }); C.toast('Face ID settings saved'); reload(); },
+        reset: async (x) => { await C.api(`/attendance/face/${x.id}`, { method: 'DELETE' }); C.toast('Face ID reset. The employee will rescan.'); reload(); },
+      });
     }],
     ['dev', 'Devices', async (el, reload) => {
       const [devs, live] = await Promise.all([isHR() ? C.api('/attendance/devices') : [], isHR() ? C.api('/attendance/liveness') : []]);
