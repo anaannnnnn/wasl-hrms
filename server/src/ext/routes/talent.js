@@ -59,7 +59,7 @@ r.post('/requisitions/:id/publish', HR, ah(async (req, res) => {
   const x = await JobRequisition.findById(req.params.id); if (!x || !['approved', 'open', 'on_hold'].includes(x.status)) throw fail(409, 'Only approved requisitions can be published.');
   x.status = open ? 'open' : 'on_hold'; x.publicSlug ||= `${x.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}-${randomBytes(3).toString('hex')}`; if (open) x.publishedAt = new Date(); await x.save();
   await audit(req, open ? 'requisition.publish' : 'requisition.unpublish', 'JobRequisition', x._id);
-  res.json({ ...x.toObject(), careersUrl: `${publicBase(req)}/api/public/careers/${req.user.tenantId}` });
+  res.json({ ...x.toObject(), careersUrl: `${publicBase(req)}/careers.html#${req.user.tenantId}` });
 }));
 r.post('/requisitions/:id/close', HR, ah(async (req, res) => { const x = await JobRequisition.findByIdAndUpdate(req.params.id, { $set: { status: 'closed' } }, { new: true }); if (!x) throw fail(404, 'Requisition not found'); await audit(req, 'requisition.close', 'JobRequisition', x._id); res.json(x); }));
 
@@ -105,7 +105,7 @@ export async function sendOffer(req, offer) {
   if (offer.validation?.issues?.length) throw fail(409, `Fix before sending: ${offer.validation.issues.join(' ')}`);
   const token = randomBytes(24).toString('base64url');
   offer.signTokenHash = sha(token); offer.status = 'sent'; offer.expiresAt = new Date(Date.now() + 7 * 864e5); await offer.save();
-  const link = `${publicBase(req)}/api/public/offers/${req.user.tenantId}/${token}`;
+  const link = `${publicBase(req)}/offer.html#${req.user.tenantId}/${token}`;
   const emailed = await sendEmail(offer.candidateEmail, `Your offer from ${(await Establishment.findById(offer.establishmentId).select('name').lean())?.name}`, `Dear ${offer.candidateName},\n\nPlease review and sign your offer here (valid 7 days):\n${link}\n\nYou can also upload your passport, photo and certificates on the same page.`);
   return { link, emailed };
 }

@@ -1,5 +1,6 @@
 // Wasl HRMS web client. Plain ES modules, no build step.
 import { translateTree } from './i18n.js';
+import { installExt, themeButton, wireThemeButton, accentRgb } from './ext.js';
 const API = '/api';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -79,7 +80,8 @@ function loginView() {
 function signOut() { token = null; me = null; localStorage.removeItem('wasl_token'); localStorage.removeItem('wasl_user'); loginView(); }
 
 // ---------------- Pulse grid background ----------------
-const bg = { mx: -999, my: -999, raf: 0 };
+const bg = { mx: -999, my: -999, raf: 0, rgb: accentRgb(), dark: document.documentElement.dataset.mode === 'dark' };
+addEventListener('wasl:theme', () => { bg.rgb = accentRgb(); bg.dark = document.documentElement.dataset.mode === 'dark'; });
 function startBackground() {
   const c = document.getElementById('bgfx'); if (!c) return;
   const ctx = c.getContext('2d');
@@ -90,7 +92,7 @@ function startBackground() {
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     const t = (performance.now() - t0) / 1000;
     ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(17,17,17,0.045)'; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.strokeStyle = bg.dark ? 'rgba(255,255,255,0.05)' : 'rgba(17,17,17,0.045)'; ctx.lineWidth = 1; ctx.beginPath();
     for (let x = 0; x <= w; x += G) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); }
     for (let y = 0; y <= h; y += G) { ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); }
     ctx.stroke();
@@ -98,7 +100,7 @@ function startBackground() {
       const d = Math.hypot(x + G / 2 - bg.mx, y + G / 2 - bg.my);
       const wave = reduce ? 0 : Math.max(0, Math.sin(x * 0.013 + y * 0.021 - t * 1.4)) ** 8 * 0.3;
       const a = Math.max(wave, d < 200 ? (1 - d / 200) * 0.45 : 0);
-      if (a > 0.02) { ctx.fillStyle = `rgba(255,91,31,${a * 0.45})`; ctx.fillRect(x + 4, y + 4, G - 8, G - 8); }
+      if (a > 0.02) { ctx.fillStyle = `rgba(${bg.rgb},${a * 0.45})`; ctx.fillRect(x + 4, y + 4, G - 8, G - 8); }
     }
     if (!reduce) bg.raf = requestAnimationFrame(draw);
   };
@@ -174,6 +176,7 @@ function shell() {
     <div class="actions">
       <div style="position:relative"><button class="iconbtn" id="bell" aria-label="Notifications" title="Notifications">${icon('M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0', 18)}<span id="bellCt" class="ct" hidden></span></button>
         <div id="bellPanel" class="panel popover" hidden></div></div>
+      ${themeButton(icon)}
       <button class="iconbtn txt" id="lb" title="Language">${t('lang')}</button>
       <div style="position:relative"><button class="avatarbtn" id="whoBtn" aria-haspopup="true" aria-expanded="false"><span class="av">${esc(ini(me.name))}</span><span class="who-txt"><b>${esc(me.name)}</b><small>${esc(isStaffUser() ? me.roles.map((r) => r.replace('_', ' ')).join(', ') : 'Employee')}</small></span></button>
         <div id="whoMenu" class="panel popover" hidden style="width:240px"><div style="font-weight:600">${esc(me.name)}</div><div style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(me.email || '')}</div><button class="btn" id="so" style="width:100%">${t('signout')}</button></div></div>
@@ -211,6 +214,7 @@ function shell() {
   });
   if (!isStaffUser()) $('#chips').hidden = true;
   translateTree($('#root'), L);
+  wireThemeButton();
   loadBell();
   if (isStaffUser()) {
     api('/establishments').then((list) => {
@@ -1679,6 +1683,9 @@ views.ehome = async () => {
   } catch { /* widgets are optional */ }
 };
 Object.assign(views, { away: () => awayView(false), eaway: () => awayView(true), ats: atsView, reflect: reflectView, ereflect: ereflectView });
+
+const tenantId = () => { try { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).tid; } catch { return ''; } };
+installExt({ views, STAFF_MODS, EMP_MODS, ICONS, T, api, V, esc, AED, toast, fail, has, pill, sheetForm, icon, fileToBase64, openFile, kv, currentEst, ests: () => ESTS, tenantId, translate: (el) => translateTree(el, L) });
 
 window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (token && mods().includes(m) && m !== cur) { cur = m; shell(); } });
 startBackground();
