@@ -26,6 +26,9 @@ test('enrollment needs every angle from the same person', () => {
   const swapped = enroll(p).map((s) => (s.angle === 'left' ? { ...s, descriptor: person() } : s));
   const r = validateEnrollment(swapped);
   assert.ok(!r.ok && /left view/.test(r.errors.join(' ')));
+  // same person whose down view drifts further from the front than from the up/left/right views still passes
+  const drift = enroll(p).map((s) => (s.angle === 'down' ? { ...s, descriptor: jitter(p, 0.07) } : s));
+  assert.ok(validateEnrollment(drift).ok);
 });
 
 test('own face passes, a stranger fails', () => {

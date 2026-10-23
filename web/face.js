@@ -26,6 +26,7 @@ const warm = () => (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(
 // ---------------------------------------------------------------- geometry
 const avg = (pts) => pts.reduce((a, p) => ({ x: a.x + p.x / pts.length, y: a.y + p.y / pts.length }), { x: 0, y: 0 });
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const dist128 = (a, b) => { let t = 0; for (let i = 0; i < a.length; i++) t += (a[i] - b[i]) ** 2; return Math.sqrt(t); };
 /** Head pose from 68 landmarks. yaw < 0 = turned to the user's left (as seen in the mirrored preview); pitch smaller = chin up. */
 function pose(pts) {
   const j0 = pts[0], j16 = pts[16], nose = pts[30], chin = pts[8];
@@ -143,7 +144,14 @@ export async function enroll() {
           else if (dy >= PITCH_T && Math.abs(dx) < YAW_T) want = 'down';
           if (want && !got[want]) {
             const d = await detect(f, S.v, true);
-            if (d) { samples.push({ angle: want, descriptor: Array.from(d.descriptor) }); got[want] = true; S.fillArc(...ARC[want]); paintSteps(got); if (navigator.vibrate) navigator.vibrate(20); }
+            if (d) {
+              // Retake on the spot if this frame drifted too far from the front view (steep angle, glare on glasses,
+              // motion blur) instead of failing the whole scan at the end.
+              const desc = Array.from(d.descriptor);
+              const drift = Math.min(...fronts.map((x) => dist128(x.d, desc)));
+              if (drift > 0.62) { S.say(want === 'down' || want === 'up' ? `A little less ${want}, and hold still…` : 'Hold still for a moment…'); continue; }
+              samples.push({ angle: want, descriptor: desc }); got[want] = true; S.fillArc(...ARC[want]); paintSteps(got); if (navigator.vibrate) navigator.vibrate(20);
+            }
           }
           const left = Object.keys(ANG).filter((a) => !got[a]);
           if (!left.length) break;
@@ -253,6 +261,43 @@ async function mountCard(el) {
   };
 }
 
-function init(ctx) { C = ctx; }
+// After sign-in, employees without Face ID get a one-time prompt (once per browser session).
+const STAFF = ['owner', 'hr_admin', 'payroll_maker', 'payroll_checker', 'manager'];
+function promptSheet(required) {
+  return new Promise((resolve) => {
+    const sh = document.createElement('div'); sh.className = 'sheet';
+    sh.innerHTML = `<div class="sheet-card panel fid-card" role="dialog" aria-modal="true" aria-label="Set up Face ID">
+      <div class="fid-intro" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9v1M15 9v1M12 9v4h-1M9.5 16a4 4 0 0 0 5 0"/></svg></div>
+      <div class="fid-head"><h2>Set up Face ID</h2><p>${required ? 'Your company uses Face ID for attendance. ' : ''}Clock in and out with a glance, no fingerprint machine or selfie needed. It takes about 20 seconds.</p></div>
+      <div class="fid-actions"><button class="btn" data-x="later">Later</button><button class="btn pri" data-x="go">Set up now</button></div></div>`;
+    document.body.appendChild(sh);
+    const done = (v) => { sh.remove(); resolve(v); };
+    sh.querySelector('[data-x=later]').onclick = () => done(false);
+    sh.querySelector('[data-x=go]').onclick = () => done(true);
+  });
+}
+async function maybePrompt() {
+  let u; try { if (!localStorage.getItem('wasl_token')) return false; u = JSON.parse(localStorage.getItem('wasl_user') || 'null'); } catch { return false; }
+  if (!u) return false;
+  if ((u.roles || []).some((r) => STAFF.includes(r))) return true; // HR/staff: nothing to prompt
+  try { if (sessionStorage.getItem('wasl_face_prompted')) return true; sessionStorage.setItem('wasl_face_prompted', '1'); } catch { /* ignore */ }
+  let st; try { st = await C.api('/me/face', { fresh: true }); } catch { return true; }
+  if (st.enrolled) { warm(); return true; }
+  warm();
+  if (await promptSheet(st.required) && await enroll()) {
+    C.toast('Face ID saved. Use it from Attendance when you clock in.');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  }
+  return true;
+}
+const watch = async () => { if (!(await maybePrompt())) setTimeout(watch, 1500); };
+/** Called on sign-out so the next person to sign in on this page gets their own prompt. */
+function reset() { try { sessionStorage.removeItem('wasl_face_prompted'); } catch { /* ignore */ } setTimeout(watch, 1500); }
+function init(ctx) {
+  C = ctx;
+  // runs on load (already signed in) and keeps watching until the person signs in
+  setTimeout(watch, 1200);
+  window.addEventListener('storage', () => { try { if (!localStorage.getItem('wasl_token')) sessionStorage.removeItem('wasl_face_prompted'); } catch { /* ignore */ } });
+}
 
-window.waslFace = { init, gate, enroll, verify, mountCard };
+window.waslFace = { init, reset, gate, enroll, verify, mountCard };
